@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Logo } from '../components/ui/Logo';
-import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Award, Star, Medal, Briefcase, ChevronRight, X, Save, Edit3, Loader2, ShieldCheck, Shield, Layers, PlusCircle, UserPlus, Trash2 } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Award, Star, Medal, Briefcase, ChevronRight, X, Save, Edit3, Loader2, ShieldCheck, Shield, Layers, PlusCircle, UserPlus, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 import { User, GT } from '../types';
 import { supabase } from '../services/supabase';
 
@@ -29,10 +29,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [managingGt, setManagingGt] = useState<GT | null>(null);
   const [userToAdd, setUserToAdd] = useState<string>(''); // User ID to add to GT
   
+  // Notification State
+  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  
   const userPoints = (user?.artigos || 0) * 150 + 50; 
   const userLevel = Math.floor(userPoints / 500) + 1;
-  const nextLevelPoints = userLevel * 500;
   const progressPercent = Math.min(100, (userPoints % 500) / 500 * 100);
+
+  // Helper for notifications
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   const fetchData = useCallback(async () => {
     const { data: userData } = await supabase
@@ -86,6 +94,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           if (error) throw error;
           await fetchData(); // Refresh all data
           setSelectedMember(null);
+          showNotification('success', 'Membro atualizado com sucesso!');
       } catch (error) {
           console.error("Erro ao atualizar membro:", error);
           alert("Erro ao salvar alterações.");
@@ -110,15 +119,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           
           // Atualiza a lista de GTs imediatamente
           await fetchData();
-          
-          // Opcional: Feedback visual simples pode ser adicionado aqui
+          showNotification('success', `Grupo "${newGtName}" criado com sucesso!`);
 
       } catch (error: any) {
           console.error('Error creating GT:', error);
           if (error.code === '23505') {
-              alert('Este grupo de trabalho já existe!');
+            showNotification('error', 'Este grupo de trabalho já existe!');
           } else {
-              alert(`Erro ao criar grupo: ${error.message || 'Tente novamente.'}`);
+            showNotification('error', 'Erro ao criar grupo. Verifique suas permissões.');
           }
       } finally {
           setIsCreatingGt(false);
@@ -137,7 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           if (error) throw error;
           await fetchData();
           setUserToAdd('');
-          alert('Membro adicionado ao grupo!');
+          // Não fechamos o modal, apenas atualizamos a lista
       } catch (error) {
           console.error('Error adding user to GT:', error);
           alert('Erro ao adicionar membro.');
@@ -232,6 +240,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         
+        {/* Global Notification Toast */}
+        {notification && (
+          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in-up">
+            <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border ${
+              notification.type === 'success' 
+                ? 'bg-brand-green/20 border-brand-green text-brand-neon' 
+                : 'bg-red-500/20 border-red-500 text-red-200'
+            }`}>
+              {notification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+              <span className="font-medium">{notification.message}</span>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <header className="h-24 flex items-center justify-between px-8 md:px-12 flex-shrink-0">
           <div>

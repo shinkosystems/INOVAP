@@ -3,7 +3,12 @@ import { supabase } from '../../services/supabase';
 import { Artigo } from '../../types';
 import { Calendar, ArrowRight, ImageOff } from 'lucide-react';
 
-export const LatestNews: React.FC = () => {
+interface LatestNewsProps {
+  onViewAll?: () => void;
+  onArticleClick?: (id: number) => void;
+}
+
+export const LatestNews: React.FC<LatestNewsProps> = ({ onViewAll, onArticleClick }) => {
   const [news, setNews] = useState<Artigo[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,9 +42,12 @@ export const LatestNews: React.FC = () => {
             <h2 className="text-4xl font-bold text-white mb-2">Novidades</h2>
             <p className="text-slate-400">Atualizações do ecossistema em tempo real.</p>
           </div>
-          <a href="#" className="hidden md:flex items-center gap-2 text-brand-neon font-medium hover:gap-3 transition-all">
+          <button 
+            onClick={onViewAll}
+            className="hidden md:flex items-center gap-2 text-brand-neon font-medium hover:gap-3 transition-all"
+          >
             Ler todas <ArrowRight size={20} />
-          </a>
+          </button>
         </div>
 
         {loading ? (
@@ -49,7 +57,11 @@ export const LatestNews: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {news.map((item) => (
-              <div key={item.id} className="group bg-white/5 border border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 transition-all duration-500 hover:shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col h-full">
+              <div 
+                key={item.id} 
+                onClick={() => onArticleClick && onArticleClick(item.id)}
+                className="group bg-white/5 border border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 transition-all duration-500 hover:shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col h-full cursor-pointer hover:-translate-y-1"
+              >
                 <div className="h-56 bg-slate-900 relative overflow-hidden">
                   {item.capa ? (
                     <img src={item.capa} alt={item.titulo} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100" />
@@ -88,9 +100,9 @@ export const LatestNews: React.FC = () => {
         )}
         
         <div className="mt-8 text-center md:hidden">
-            <a href="#" className="inline-flex items-center gap-2 text-brand-neon font-medium">
+            <button onClick={onViewAll} className="inline-flex items-center gap-2 text-brand-neon font-medium">
                 Ler todas <ArrowRight size={20} />
-            </a>
+            </button>
         </div>
       </div>
     </div>

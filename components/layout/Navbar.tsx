@@ -4,9 +4,10 @@ import { Menu, X, LogIn } from 'lucide-react';
 
 interface NavbarProps {
   onLoginClick: () => void;
+  onNavigate?: (section: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onLoginClick }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -18,6 +19,27 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const navItems = [
+    { label: 'Início', target: 'inicio' },
+    { label: 'Grupos de Trabalho', target: 'gts' },
+    { label: 'O Ecossistema', target: 'sobre' },
+    { label: 'Artigos', target: 'artigos' }
+  ];
+
+  const handleNavClick = (e: React.MouseEvent, target: string) => {
+    e.preventDefault();
+    if (onNavigate) {
+      onNavigate(target);
+    } else {
+      // Fallback para comportamento padrão se onNavigate não for passado (ex: dentro do dashboard)
+      const element = document.getElementById(target);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+    setIsOpen(false);
+  };
+
   return (
     <nav className={`fixed w-full z-50 transition-all duration-300 ${scrolled ? 'py-4' : 'py-6'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -28,25 +50,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick }) => {
                 : 'bg-black/30 backdrop-blur-md'}
         `}>
             <div className="flex justify-between h-16 items-center px-6">
-            <div className="flex-shrink-0 flex items-center">
+            <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={(e) => handleNavClick(e, 'inicio')}>
                 <Logo dark />
             </div>
             
             <div className="hidden md:flex items-center space-x-8">
-                {['Início', 'Grupos de Trabalho', 'O Ecossistema', 'Artigos'].map((item, idx) => {
-                    const href = item === 'Início' ? '#inicio' : 
-                                 item === 'Grupos de Trabalho' ? '#gts' : 
-                                 item === 'O Ecossistema' ? '#sobre' : '#artigos';
-                    return (
-                        <a 
-                            key={idx} 
-                            href={href} 
-                            className="text-sm font-medium text-slate-300 hover:text-brand-neon hover:shadow-[0_0_15px_rgba(0,255,157,0.5)] transition-all duration-300"
-                        >
-                            {item}
-                        </a>
-                    );
-                })}
+                {navItems.map((item) => (
+                    <a 
+                        key={item.label} 
+                        href={`#${item.target}`}
+                        onClick={(e) => handleNavClick(e, item.target)}
+                        className="text-sm font-medium text-slate-300 hover:text-brand-neon hover:shadow-[0_0_15px_rgba(0,255,157,0.5)] transition-all duration-300"
+                    >
+                        {item.label}
+                    </a>
+                ))}
                 
                 <button 
                 onClick={onLoginClick}
@@ -70,9 +88,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick }) => {
       {isOpen && (
         <div className="md:hidden absolute top-24 left-4 right-4 z-50">
             <div className="bg-black/80 backdrop-blur-xl border border-brand-border rounded-3xl p-4 space-y-2 shadow-2xl">
-                <a href="#inicio" onClick={() => setIsOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-colors">Início</a>
-                <a href="#gts" onClick={() => setIsOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-colors">Grupos de Trabalho</a>
-                <a href="#sobre" onClick={() => setIsOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-colors">O Ecossistema</a>
+                {navItems.map((item) => (
+                    <a 
+                        key={item.label}
+                        href={`#${item.target}`} 
+                        onClick={(e) => handleNavClick(e, item.target)} 
+                        className="block px-4 py-3 text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-colors"
+                    >
+                        {item.label}
+                    </a>
+                ))}
                 <button 
                 onClick={() => {
                     setIsOpen(false);

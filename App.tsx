@@ -8,18 +8,23 @@ import { Events } from './components/landing/Events';
 import { Footer } from './components/layout/Footer';
 import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
+import { BlogPage } from './pages/BlogPage';
+import { ArticlePage } from './pages/ArticlePage';
 import { User } from './types';
 import { supabase } from './services/supabase';
 
 enum Page {
   LANDING,
   LOGIN,
-  DASHBOARD
+  DASHBOARD,
+  BLOG,
+  ARTICLE
 }
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.LANDING);
   const [user, setUser] = useState<User | null>(null);
+  const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -54,6 +59,42 @@ const App: React.FC = () => {
     setCurrentPage(Page.LANDING);
   };
 
+  const handleOpenArticle = (id: number) => {
+    setSelectedArticleId(id);
+    setCurrentPage(Page.ARTICLE);
+    window.scrollTo(0, 0);
+  };
+
+  // Centralized Navigation Logic
+  const handleNavigate = (target: string) => {
+    if (target === 'artigos') {
+      setCurrentPage(Page.BLOG);
+      window.scrollTo(0, 0);
+    } else {
+      // If we are on the blog page or login page and want to go to a home section
+      if (currentPage !== Page.LANDING) {
+        setCurrentPage(Page.LANDING);
+        // Small delay to allow the Landing page to render before scrolling
+        setTimeout(() => {
+          const element = document.getElementById(target);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+          } else {
+            window.scrollTo(0, 0);
+          }
+        }, 100);
+      } else {
+        // If already on landing, just scroll
+        const element = document.getElementById(target);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            window.scrollTo(0, 0);
+        }
+      }
+    }
+  };
+
   const renderContent = () => {
     switch (currentPage) {
       case Page.LOGIN:
@@ -62,15 +103,37 @@ const App: React.FC = () => {
       case Page.DASHBOARD:
         return <Dashboard onLogout={handleLogout} user={user} />;
       
+      case Page.BLOG:
+        return (
+            <BlogPage 
+                onLoginClick={() => setCurrentPage(Page.LOGIN)} 
+                onNavigate={handleNavigate}
+                onArticleClick={handleOpenArticle}
+            />
+        );
+
+      case Page.ARTICLE:
+        return (
+            <ArticlePage 
+                articleId={selectedArticleId}
+                onBack={() => setCurrentPage(Page.BLOG)}
+                onLoginClick={() => setCurrentPage(Page.LOGIN)}
+                onNavigate={handleNavigate}
+            />
+        );
+
       case Page.LANDING:
       default:
         return (
           <div className="bg-black min-h-screen text-white selection:bg-brand-neon selection:text-black">
-            <Navbar onLoginClick={() => setCurrentPage(Page.LOGIN)} />
+            <Navbar onLoginClick={() => setCurrentPage(Page.LOGIN)} onNavigate={handleNavigate} />
             <Hero />
             <Stats />
             <WorkingGroups />
-            <LatestNews />
+            <LatestNews 
+                onViewAll={() => handleNavigate('artigos')} 
+                onArticleClick={handleOpenArticle}
+            />
             <Events />
             
             {/* About Section - Glass Dark */}
