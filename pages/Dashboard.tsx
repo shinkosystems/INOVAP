@@ -99,8 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       if (!newGtName.trim()) return;
       setIsCreatingGt(true);
       try {
-          // Simplificado: Removemos o .select() para evitar erros de policy RLS no retorno imediato.
-          // Se não der erro no insert, assumimos sucesso.
+          // Insere no banco de dados
           const { error } = await supabase
             .from('gts')
             .insert([{ gt: newGtName.trim() }]);
@@ -108,17 +107,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           if (error) throw error;
           
           setNewGtName('');
-          alert('Grupo criado com sucesso!');
           
-          // Força atualização da lista vindo do servidor
+          // Atualiza a lista de GTs imediatamente
           await fetchData();
+          
+          // Opcional: Feedback visual simples pode ser adicionado aqui
 
       } catch (error: any) {
           console.error('Error creating GT:', error);
           if (error.code === '23505') {
               alert('Este grupo de trabalho já existe!');
           } else {
-              alert(`Erro ao criar grupo: ${error.message || 'Verifique sua conexão.'}`);
+              alert(`Erro ao criar grupo: ${error.message || 'Tente novamente.'}`);
           }
       } finally {
           setIsCreatingGt(false);

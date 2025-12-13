@@ -53,7 +53,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
               artigos: 5,
               created_at: new Date().toISOString(),
               last_login: new Date().toISOString(),
-              uuid: "demo-uuid"
+              uuid: "demo-uuid",
+              governanca: true // Habilita aba de gestão
           });
       }
     } finally {
