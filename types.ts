@@ -1,3 +1,5 @@
+
+
 export interface GT {
   id: number;
   gt: string;
@@ -15,9 +17,10 @@ export interface User {
   nome: string;
   email: string;
   uuid: string;
-  gt?: number;
+  gts?: number[]; // Alterado para refletir a coluna ARRAY do banco
   cargo?: number;
   governanca?: boolean;
+  avatar?: string; // Foto de perfil
   artigos: number;
   // Computed client-side for demo, or fetched if schema expands
   pontos?: number; 
@@ -43,6 +46,15 @@ export interface Empresa {
   cnpj: string;
   cidade: string;
   uf: string;
+  // Novos campos para Landing Page
+  slogan?: string;
+  descricao?: string;
+  logo?: string;
+  banner?: string;
+  site?: string;
+  instagram?: string;
+  linkedin?: string;
+  cor_primaria?: string;
 }
 
 export interface PontuacaoAcao {
@@ -57,4 +69,14 @@ export interface Evento {
   data: string;
   local: string;
   tipo: string;
+}
+
+export interface MuralPost {
+  id: number;
+  gt_id: number;
+  user_id: number; // ID numérico do usuário
+  user_nome: string;
+  conteudo: string;
+  created_at: string;
+  likes: number;
 }

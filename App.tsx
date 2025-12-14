@@ -10,7 +10,9 @@ import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { BlogPage } from './pages/BlogPage';
 import { ArticlePage } from './pages/ArticlePage';
-import { User } from './types';
+import { ProfilePage } from './pages/ProfilePage';
+import { CompanyPublicPage } from './components/company/CompanyPublicPage';
+import { User, Empresa } from './types';
 import { supabase } from './services/supabase';
 
 enum Page {
@@ -18,17 +20,35 @@ enum Page {
   LOGIN,
   DASHBOARD,
   BLOG,
-  ARTICLE
+  ARTICLE,
+  PROFILE,
+  COMPANY_PUBLIC
 }
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.LANDING);
   const [user, setUser] = useState<User | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
+  const [previewEmpresa, setPreviewEmpresa] = useState<Empresa | null>(null);
 
   // Check for existing session on mount
   useEffect(() => {
       const checkSession = async () => {
+          // Check URL params for shared company links (simulated routing)
+          const params = new URLSearchParams(window.location.search);
+          const pageParam = params.get('page');
+          const idParam = params.get('id');
+
+          if (pageParam === 'empresa' && idParam) {
+              // Fetch company data to show publicly
+              const { data } = await supabase.from('empresas').select('*').eq('id', idParam).single();
+              if (data) {
+                  setPreviewEmpresa(data);
+                  setCurrentPage(Page.COMPANY_PUBLIC);
+                  return; // Stop session check to show public page immediately
+              }
+          }
+
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
              // If session exists, try to get profile data
@@ -53,6 +73,10 @@ const App: React.FC = () => {
     setCurrentPage(Page.DASHBOARD);
   };
 
+  const handleUpdateUser = (updatedUser: User) => {
+      setUser(updatedUser);
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -63,6 +87,12 @@ const App: React.FC = () => {
     setSelectedArticleId(id);
     setCurrentPage(Page.ARTICLE);
     window.scrollTo(0, 0);
+  };
+
+  const handleViewCompany = (empresa: Empresa) => {
+      setPreviewEmpresa(empresa);
+      setCurrentPage(Page.COMPANY_PUBLIC);
+      window.scrollTo(0, 0);
   };
 
   // Centralized Navigation Logic
@@ -101,8 +131,36 @@ const App: React.FC = () => {
         return <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setCurrentPage(Page.LANDING)} />;
       
       case Page.DASHBOARD:
-        return <Dashboard onLogout={handleLogout} user={user} />;
+        return (
+            <Dashboard 
+                onLogout={handleLogout} 
+                user={user} 
+                onProfileClick={() => setCurrentPage(Page.PROFILE)}
+            />
+        );
+
+      case Page.PROFILE:
+        return user ? (
+            <ProfilePage 
+                user={user} 
+                onBack={() => setCurrentPage(Page.DASHBOARD)}
+                onUpdateUser={handleUpdateUser}
+                onLogout={handleLogout}
+                onViewCompany={handleViewCompany}
+            />
+        ) : <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setCurrentPage(Page.LANDING)} />;
       
+      case Page.COMPANY_PUBLIC:
+        if (!previewEmpresa) return null;
+        return (
+            <CompanyPublicPage 
+                empresa={previewEmpresa} 
+                // Only show back button if we have a user logged in (preview mode), otherwise it's a public link view
+                onBack={user ? () => setCurrentPage(Page.PROFILE) : undefined} 
+                onLoginClick={() => setCurrentPage(Page.LOGIN)}
+            />
+        );
+
       case Page.BLOG:
         return (
             <BlogPage 

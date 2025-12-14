@@ -155,12 +155,10 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId, onBack, onL
 
             {/* Main Text */}
             <div className="prose prose-lg prose-invert max-w-none">
-                {/* Simples renderização de texto com quebra de linha. 
-                    Se o conteúdo for HTML real, usaríamos dangerouslySetInnerHTML. 
-                    Assumindo texto plano ou HTML básico do schema. */}
-                <div className="text-slate-300 leading-8 font-light space-y-6 whitespace-pre-wrap text-lg">
-                    {artigo.conteudo}
-                </div>
+                <div 
+                  className="text-slate-300 leading-8 font-light space-y-6 text-lg prose-img:rounded-2xl prose-img:shadow-xl prose-img:border prose-img:border-white/10 prose-headings:text-white prose-headings:font-bold prose-a:text-brand-neon"
+                  dangerouslySetInnerHTML={{ __html: artigo.conteudo }}
+                />
             </div>
 
             {/* Footer Tags */}

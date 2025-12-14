@@ -25,6 +25,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, on
       const { data, error } = await supabase
         .from('artigos')
         .select('*')
+        .eq('aprovado', true) // Filtra apenas artigos aprovados
         .order('created_at', { ascending: false });
       
       if (error) throw error;
