@@ -54,6 +54,7 @@ export interface Empresa {
   site?: string;
   instagram?: string;
   linkedin?: string;
+  whatsapp?: string; // Novo campo
   cor_primaria?: string;
 }
 

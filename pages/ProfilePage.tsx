@@ -3,7 +3,7 @@ import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
 import { supabase } from '../services/supabase';
 import { User, GT, Cargo, Empresa } from '../types';
-import { Save, ArrowLeft, User as UserIcon, Briefcase, Layers, Shield, Loader2, CheckCircle, AlertCircle, Camera, Building2, Globe, MapPin, Hash, Link as LinkIcon, Eye, Image as ImageIcon, LayoutTemplate } from 'lucide-react';
+import { Save, ArrowLeft, User as UserIcon, Briefcase, Layers, Shield, Loader2, CheckCircle, AlertCircle, Camera, Building2, Globe, MapPin, Hash, Link as LinkIcon, Eye, Image as ImageIcon, LayoutTemplate, Phone } from 'lucide-react';
 
 interface ProfilePageProps {
   user: User;
@@ -40,7 +40,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [empresaForm, setEmpresaForm] = useState<Partial<Empresa>>({
       nome: '', cnpj: '', cidade: '', uf: '', 
-      slogan: '', descricao: '', site: '', instagram: '', linkedin: '', cor_primaria: '#10b981',
+      slogan: '', descricao: '', site: '', instagram: '', linkedin: '', whatsapp: '', cor_primaria: '#10b981',
       logo: '', banner: ''
   });
   const [loadingEmpresa, setLoadingEmpresa] = useState(false);
@@ -273,7 +273,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
       } catch (e: any) {
           console.error("Erro salvar empresa", e);
           let msg = e.message || 'Erro ao salvar empresa.';
-          if (e.code === '42703') msg = "Erro: Colunas novas (slogan, logo, etc) ainda não criadas no banco.";
+          if (e.code === '42703') msg = "Erro: Colunas novas (slogan, logo, whatsapp, etc) ainda não criadas no banco.";
           showNotification('error', msg);
       } finally {
           setLoadingEmpresa(false);
@@ -666,6 +666,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
                              <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-2">Links & Contato</label>
                                 <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <Phone size={16} className="text-slate-500" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="WhatsApp (com DDD, apenas números)" 
+                                            value={empresaForm.whatsapp || ''} 
+                                            onChange={(e) => setEmpresaForm({...empresaForm, whatsapp: e.target.value})} 
+                                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" 
+                                        />
+                                    </div>
                                     <div className="flex items-center gap-2">
                                         <Globe size={16} className="text-slate-500" />
                                         <input type="text" placeholder="Site (https://...)" value={empresaForm.site || ''} onChange={(e) => setEmpresaForm({...empresaForm, site: e.target.value})} className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
