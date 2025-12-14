@@ -10,7 +10,7 @@ export const Footer: React.FC = () => {
           <div className="col-span-1 md:col-span-1">
             <Logo dark className="mb-8" />
             <p className="text-slate-500 text-sm leading-relaxed mb-8">
-              Transformando o Vale do Paraíba em referência mundial de inovação com transparência e conexão.
+              Transformando o Alto Paraopeba em referência mundial de inovação com transparência e conexão.
             </p>
             <div className="flex gap-4">
               {[Instagram, Linkedin, Facebook].map((Icon, i) => (
@@ -35,11 +35,11 @@ export const Footer: React.FC = () => {
             <ul className="space-y-6 text-sm">
               <li className="flex items-start gap-4">
                 <div className="p-2 bg-white/5 rounded-lg text-brand-green"><MapPin size={18} /></div>
-                <span>Parque Tecnológico<br />São José dos Campos - SP</span>
+                <span>Campus Alto Paraopeba<br />Ouro Branco - MG</span>
               </li>
               <li className="flex items-center gap-4">
                 <div className="p-2 bg-white/5 rounded-lg text-brand-green"><Phone size={18} /></div>
-                <span>(12) 3999-9999</span>
+                <span>(31) 3741-0000</span>
               </li>
               <li className="flex items-center gap-4">
                 <div className="p-2 bg-white/5 rounded-lg text-brand-green"><Mail size={18} /></div>

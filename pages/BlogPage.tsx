@@ -55,7 +55,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, on
           </div>
           <h1 className="text-4xl md:text-6xl font-bold mb-6 text-white tracking-tight">Biblioteca de Inovação</h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10 font-light leading-relaxed">
-            Explorando as fronteiras da tecnologia, cases de sucesso e o futuro do ecossistema no Vale do Paraíba.
+            Explorando as fronteiras da tecnologia, cases de sucesso e o futuro do ecossistema no Alto Paraopeba.
           </p>
           
           <div className="max-w-xl mx-auto relative group">

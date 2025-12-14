@@ -51,7 +51,7 @@ export const CompanyPublicPage: React.FC<CompanyPublicPageProps> = ({ empresa, o
   const testimonials = [
       { id: 1, text: "Uma parceria estratégica que transformou nossos resultados.", author: "Carlos Silva", role: "CEO, TechStart" },
       { id: 2, text: "Inovação real e compromisso com o ecossistema.", author: "Ana Souza", role: "Diretora de Inovação" },
-      { id: 3, text: "A equipe mais preparada do Vale do Paraíba.", author: "Roberto Mendes", role: "Investidor Anjo" }
+      { id: 3, text: "A equipe mais preparada do Alto Paraopeba.", author: "Roberto Mendes", role: "Investidor Anjo" }
   ];
 
   return (
