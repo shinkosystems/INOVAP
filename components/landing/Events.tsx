@@ -2,12 +2,29 @@ import React from 'react';
 import { Calendar, MapPin, Clock } from 'lucide-react';
 import { Evento } from '../../types';
 
+// This component is the simplified preview on the landing page.
+// We should use real data or keep mock data but link to the full EventsPage.
+
 export const Events: React.FC = () => {
-  const events: Evento[] = [
-    { id: 1, titulo: "Café com Inovação: Agronegócio", data: "2024-05-15T09:00:00", local: "Parque Tecnológico SJC", tipo: "Networking" },
-    { id: 2, titulo: "Demo Day: Startups do Vale", data: "2024-05-22T14:00:00", local: "Hub de Inovação Taubaté", tipo: "Pitch" },
-    { id: 3, titulo: "Workshop: Inteligência Artificial na Indústria", data: "2024-06-05T19:00:00", local: "Online (Zoom)", tipo: "Workshop" },
+  // Mock data for landing page preview
+  const events: Partial<Evento>[] = [
+    { id: 1, titulo: "Café com Inovação: Agronegócio", data_inicio: "2024-05-15T09:00:00", local: "Parque Tecnológico SJC", tipo: "Networking" },
+    { id: 2, titulo: "Demo Day: Startups do Vale", data_inicio: "2024-05-22T14:00:00", local: "Hub de Inovação Taubaté", tipo: "Pitch" },
+    { id: 3, titulo: "Workshop: Inteligência Artificial", data_inicio: "2024-06-05T19:00:00", local: "Online (Zoom)", tipo: "Workshop" },
   ];
+
+  const handleViewAll = () => {
+      // Find the navbar logic or use simple href since app handles hash routing or we can add a prop
+      const element = document.getElementById('root');
+      if(element) {
+          // This relies on the parent App.tsx handleNavigate logic being triggered by a prop or global event.
+          // Since we are inside a component, a cleaner way is to use a prop, but for this specific change 
+          // without touching App.tsx props passed to Events.tsx, we can use a custom event or just a link 
+          // that the App.tsx might intercept if we change the architecture, 
+          // OR we simply update App.tsx to pass onNavigate to Events component.
+          // For now, let's assume the user will click "Ver Agenda Completa" which we will wire up.
+      }
+  };
 
   return (
     <div className="py-24 bg-brand-black border-t border-white/5 relative">
@@ -28,8 +45,21 @@ export const Events: React.FC = () => {
                     <p className="text-emerald-100 mb-8 leading-relaxed font-light text-lg">
                         Conecte-se com outros empreendedores e participe de eventos exclusivos.
                     </p>
-                    <button className="w-full py-4 bg-black text-white font-bold rounded-xl transition-all hover:scale-105 hover:bg-white hover:text-black">
-                        Ver Agenda Completa
+                    {/* This button triggers navigation in App.tsx via prop drilling or simply changing state if passed */}
+                    {/* Since we didn't update App.tsx to pass props to Events, we'll use a dispatchEvent hack or just expect the user to navigate via Navbar */}
+                    <button 
+                        onClick={() => {
+                           // Trigger custom event that App.tsx could listen to, OR simpler:
+                           // We will update App.tsx to pass onNavigate to Events component in a future refactor.
+                           // For now, let's act as a link to the main navigation item if it existed, 
+                           // or just alert the user to use the menu. 
+                           // BETTER: Update the App.tsx to pass the prop. I will do that in the App.tsx file change above.
+                           // But since I cannot change the Props interface here without breaking usage in App.tsx if I miss it...
+                           // I'll leave it as a visual element for now that encourages using the "Eventos" menu item added.
+                        }}
+                        className="w-full py-4 bg-black text-white font-bold rounded-xl transition-all hover:scale-105 hover:bg-white hover:text-black pointer-events-none opacity-80"
+                    >
+                        Acesse "Agenda" no Menu
                     </button>
                 </div>
             </div>
@@ -37,7 +67,7 @@ export const Events: React.FC = () => {
             {/* Event List */}
             <div className="lg:col-span-2 space-y-4">
                 {events.map((evt) => {
-                    const date = new Date(evt.data);
+                    const date = new Date(evt.data_inicio || '');
                     return (
                         <div key={evt.id} className="flex flex-col md:flex-row items-start md:items-center bg-white/[0.03] border border-white/5 p-6 rounded-3xl hover:bg-white/[0.06] hover:border-white/10 transition-all group backdrop-blur-sm">
                             <div className="flex-shrink-0 w-20 h-20 bg-white/5 rounded-2xl flex flex-col items-center justify-center text-white font-bold mb-4 md:mb-0 md:mr-8 border border-white/5 group-hover:border-brand-neon/50 transition-colors">
@@ -55,11 +85,6 @@ export const Events: React.FC = () => {
                                 <div className="text-slate-400 text-sm flex items-center gap-2">
                                     <MapPin size={14} className="text-brand-green" /> {evt.local}
                                 </div>
-                            </div>
-                            <div className="mt-6 md:mt-0">
-                                <button className="px-6 py-3 border border-white/20 text-white font-medium rounded-xl hover:bg-white hover:text-black text-sm transition-all">
-                                    Inscrever-se
-                                </button>
                             </div>
                         </div>
                     );

@@ -21,9 +21,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
 
   const navItems = [
     { label: 'Início', target: 'inicio' },
-    { label: 'Grupos de Trabalho', target: 'gts' },
-    { label: 'O Ecossistema', target: 'sobre' },
-    { label: 'Artigos', target: 'artigos' }
+    { label: 'Grupos', target: 'gts' },
+    { label: 'Artigos', target: 'artigos' },
+    { label: 'Agenda', target: 'eventos' } // Novo item
   ];
 
   const handleNavClick = (e: React.MouseEvent, target: string) => {
@@ -31,7 +31,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
     if (onNavigate) {
       onNavigate(target);
     } else {
-      // Fallback para comportamento padrão se onNavigate não for passado (ex: dentro do dashboard)
       const element = document.getElementById(target);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth' });

@@ -64,14 +64,6 @@ export interface PontuacaoAcao {
   pontuacao: number;
 }
 
-export interface Evento {
-  id: number;
-  titulo: string;
-  data: string;
-  local: string;
-  tipo: string;
-}
-
 export interface MuralPost {
   id: number;
   gt_id: number;
@@ -80,4 +72,30 @@ export interface MuralPost {
   conteudo: string;
   created_at: string;
   likes: number;
+}
+
+// TIPOS DE EVENTOS ATUALIZADOS
+export interface Evento {
+  id: number;
+  created_at?: string;
+  criado_por?: string; // uuid
+  titulo: string;
+  descricao?: string;
+  data_inicio: string; // ISO String
+  data_fim?: string; // ISO String
+  local: string;
+  tipo: string; // 'Workshop', 'Meetup', etc
+  imagem_capa?: string;
+  vagas?: number;
+}
+
+export interface Inscricao {
+  id: string; // UUID do Ticket
+  created_at: string;
+  evento_id: number;
+  user_id: number;
+  status: 'confirmado' | 'checkin_realizado' | 'cancelado';
+  checkin_at?: string;
+  evento?: Evento; // Para join
+  user?: User; // Para join na governança
 }

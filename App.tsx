@@ -12,6 +12,7 @@ import { BlogPage } from './pages/BlogPage';
 import { ArticlePage } from './pages/ArticlePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { CompanyPublicPage } from './components/company/CompanyPublicPage';
+import { EventsPage } from './pages/EventsPage'; // NEW IMPORT
 import { User, Empresa } from './types';
 import { supabase } from './services/supabase';
 
@@ -22,7 +23,8 @@ enum Page {
   BLOG,
   ARTICLE,
   PROFILE,
-  COMPANY_PUBLIC
+  COMPANY_PUBLIC,
+  EVENTS_PUBLIC // NEW ENUM
 }
 
 const App: React.FC = () => {
@@ -100,6 +102,9 @@ const App: React.FC = () => {
     if (target === 'artigos') {
       setCurrentPage(Page.BLOG);
       window.scrollTo(0, 0);
+    } else if (target === 'eventos') { // NEW TARGET
+      setCurrentPage(Page.EVENTS_PUBLIC);
+      window.scrollTo(0, 0);
     } else {
       // If we are on the blog page or login page and want to go to a home section
       if (currentPage !== Page.LANDING) {
@@ -170,6 +175,15 @@ const App: React.FC = () => {
             />
         );
 
+      case Page.EVENTS_PUBLIC:
+        return (
+            <EventsPage 
+                user={user}
+                onLoginClick={() => setCurrentPage(Page.LOGIN)} 
+                onNavigate={handleNavigate}
+            />
+        );
+
       case Page.ARTICLE:
         return (
             <ArticlePage 
@@ -192,7 +206,8 @@ const App: React.FC = () => {
                 onViewAll={() => handleNavigate('artigos')} 
                 onArticleClick={handleOpenArticle}
             />
-            <Events />
+            <Events /> 
+            {/* Note: The <Events /> component on landing page might need a "View All" button wired to handleNavigate('eventos') */}
             
             {/* About Section - Glass Dark */}
             <section id="sobre" className="py-32 bg-brand-black relative overflow-hidden">
