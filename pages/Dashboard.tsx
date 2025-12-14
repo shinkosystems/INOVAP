@@ -126,6 +126,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const userLevel = Math.floor(userPoints / 500) + 1;
   const progressPercent = Math.min(100, (userPoints % 500) / 500 * 100);
 
+  // Access Control Logic
+  const isRestrictedUser = !user?.governanca && (!user?.gts || user.gts.length === 0);
+
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
@@ -139,6 +142,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   const fetchData = useCallback(async () => {
     if (!user) return;
+
+    // Fetch Available Events (Future) - Everyone needs this
+    const { data: futureEvents } = await supabase.from('eventos').select('*').gte('data_inicio', new Date().toISOString()).order('data_inicio', { ascending: true });
+    if (futureEvents) setAvailableEvents(futureEvents);
+
+    // Fetch My Tickets - Everyone needs this
+    const { data: tickets } = await supabase.from('inscricoes').select('*, evento:eventos(*)').eq('user_id', user.id);
+    if (tickets) setMyTickets(tickets);
+
+    // --- RESTRICTED DATA FETCHING ---
+    // If restricted, we don't need to fetch heavy data for tabs they can't see
+    if (isRestrictedUser) return;
 
     // Fetch Users & Ranking
     const { data: userData } = await supabase.from('users').select('*').order('artigos', { ascending: false });
@@ -172,15 +187,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         if (events) setManagedEvents(events);
     }
 
-    // Fetch Available Events (Future)
-    const { data: futureEvents } = await supabase.from('eventos').select('*').gte('data_inicio', new Date().toISOString()).order('data_inicio', { ascending: true });
-    if (futureEvents) setAvailableEvents(futureEvents);
-
-    // Fetch My Tickets
-    const { data: tickets } = await supabase.from('inscricoes').select('*, evento:eventos(*)').eq('user_id', user.id);
-    if (tickets) setMyTickets(tickets);
-
-  }, [user]);
+  }, [user, isRestrictedUser]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -380,6 +387,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   }
   const getCargoName = (id?: number) => cargos.find(c => c.id === id)?.cargo || 'Membro';
 
+  // Construct Sidebar Items conditionally
+  const sidebarItems = [
+    { id: 'overview', icon: LayoutDashboard, label: 'Visão Geral' },
+    { id: 'agenda', icon: CalendarRange, label: 'Agenda de Eventos' },
+    { id: 'my_events', icon: Ticket, label: 'Meus Eventos' },
+  ];
+
+  if (!isRestrictedUser) {
+    sidebarItems.push(
+      { id: 'mural', icon: MessageSquare, label: 'Mural dos GTs' },
+      { id: 'ranking', icon: Award, label: 'Ranking' },
+      { id: 'members', icon: Users, label: 'Membros' },
+      { id: 'articles', icon: FileText, label: 'Artigos' }
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-white flex font-sans overflow-hidden relative">
       {/* Sidebar */}
@@ -387,15 +410,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         <div className="h-24 flex items-center px-8"><Logo dark /></div>
         
         <div className="flex-1 py-4 px-4 space-y-2 overflow-y-auto custom-scrollbar">
-          {[
-            { id: 'overview', icon: LayoutDashboard, label: 'Visão Geral' },
-            { id: 'agenda', icon: CalendarRange, label: 'Agenda de Eventos' },
-            { id: 'my_events', icon: Ticket, label: 'Meus Eventos' },
-            { id: 'mural', icon: MessageSquare, label: 'Mural dos GTs' },
-            { id: 'ranking', icon: Award, label: 'Ranking' },
-            { id: 'members', icon: Users, label: 'Membros' },
-            { id: 'articles', icon: FileText, label: 'Artigos' },
-          ].map((item) => (
+          {sidebarItems.map((item) => (
             <button 
               key={item.id}
               onClick={() => setActiveTab(item.id as Tab)}
@@ -449,7 +464,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <div className="space-y-8 animate-fade-in-up">
                     <div className="relative bg-gradient-to-r from-brand-green/20 to-blue-900/20 rounded-3xl p-10 border border-white/10 overflow-hidden backdrop-blur-md">
                         <h1 className="text-4xl font-bold mb-4 text-white">Olá, {user?.nome.split(' ')[0]}</h1>
-                        <p className="text-slate-300">Acesse o mural do seu GT para ver as novidades.</p>
+                        <p className="text-slate-300">
+                            {isRestrictedUser 
+                                ? 'Inscreva-se em eventos para interagir com o ecossistema.' 
+                                : 'Acesse o mural do seu GT para ver as novidades.'
+                            }
+                        </p>
                         
                         <div className="mt-8 flex gap-4">
                              <div className="bg-black/30 p-4 rounded-xl">
@@ -533,7 +553,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {/* MURAL */}
-            {activeTab === 'mural' && (
+            {activeTab === 'mural' && !isRestrictedUser && (
                 <div className="animate-fade-in-up max-w-4xl mx-auto">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex gap-2">
@@ -589,7 +609,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {/* RANKING */}
-            {activeTab === 'ranking' && (
+            {activeTab === 'ranking' && !isRestrictedUser && (
                 <div className="animate-fade-in-up">
                     <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
                         <table className="w-full text-left">
@@ -624,7 +644,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {/* MEMBROS */}
-            {activeTab === 'members' && (
+            {activeTab === 'members' && !isRestrictedUser && (
                 <div className="animate-fade-in-up">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {members.map(member => (
@@ -644,7 +664,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {/* ARTIGOS */}
-            {activeTab === 'articles' && (
+            {activeTab === 'articles' && !isRestrictedUser && (
                 <div className="animate-fade-in-up">
                     <div className="flex justify-between items-center mb-8">
                         <h3 className="text-xl font-bold text-white">Gerenciar Artigos</h3>

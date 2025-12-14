@@ -16,7 +16,7 @@ export const Logo: React.FC<LogoProps> = ({ className = "", dark = false }) => {
         rounded-2xl p-2
       `}>
         <img 
-          src="https://jmhquynjyekclwxjgupk.supabase.co/storage/v1/object/public/logotipos/logotipos/12.png" 
+          src="https://jmhquynjyekclwxjgupk.supabase.co/storage/v1/object/public/logotipos/logotipos/2.png" 
           alt="INOVAP" 
           className="h-8 w-auto object-contain" 
         />

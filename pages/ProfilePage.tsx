@@ -49,10 +49,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
   const [gtsOptions, setGtsOptions] = useState<GT[]>([]);
   const [cargosOptions, setCargosOptions] = useState<Cargo[]>([]);
 
+  // Lógica de restrição: Se não for governança E não tiver GTs, não vê empresa
+  const isRestricted = !user.governanca && (!user.gts || user.gts.length === 0);
+
   useEffect(() => {
     fetchOptions();
-    fetchEmpresa();
-  }, []);
+    if (!isRestricted) {
+        fetchEmpresa();
+    }
+  }, [isRestricted]);
 
   const fetchOptions = async () => {
     try {
@@ -314,12 +319,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
                 >
                     <UserIcon size={18} /> Dados Pessoais
                 </button>
-                <button 
-                    onClick={() => setActiveTab('company')}
-                    className={`px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'company' ? 'bg-brand-neon text-black shadow-lg' : 'text-slate-400 hover:text-white'}`}
-                >
-                    <Building2 size={18} /> Minha Empresa
-                </button>
+                {!isRestricted && (
+                    <button 
+                        onClick={() => setActiveTab('company')}
+                        className={`px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'company' ? 'bg-brand-neon text-black shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        <Building2 size={18} /> Minha Empresa
+                    </button>
+                )}
             </div>
         </div>
 
@@ -506,6 +513,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
             </div>
         ) : (
             // --- TAB EMPRESA (LANDING PAGE BUILDER) ---
+            !isRestricted && (
             <div className="animate-fade-in-up">
                 <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-md mb-8">
                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/5 pb-6 mb-8 gap-4">
@@ -702,6 +710,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
 
                 </div>
             </div>
+            )
         )}
 
       </div>
