@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Logo } from '../ui/Logo';
-import { Menu, X, LogIn } from 'lucide-react';
+import { Menu, X, LogIn, Download } from 'lucide-react';
 
 interface NavbarProps {
   onLoginClick: () => void;
@@ -10,20 +10,42 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
     window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
+
+  const handleInstallClick = () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt.userChoice.then((choiceResult: any) => {
+      if (choiceResult.outcome === 'accepted') {
+        setInstallPrompt(null);
+      }
+    });
+  };
 
   const navItems = [
     { label: 'Início', target: 'inicio' },
     { label: 'Grupos', target: 'gts' },
     { label: 'Artigos', target: 'artigos' },
-    { label: 'Agenda', target: 'eventos' } // Novo item
+    { label: 'Agenda', target: 'eventos' }
   ];
 
   const handleNavClick = (e: React.MouseEvent, target: string) => {
@@ -65,6 +87,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
                     </a>
                 ))}
                 
+                {installPrompt && (
+                  <button 
+                    onClick={handleInstallClick}
+                    className="bg-white/10 text-white px-4 py-2 rounded-full text-xs font-medium hover:bg-white hover:text-black transition-all flex items-center gap-2 border border-white/10"
+                  >
+                    <Download size={14} />
+                    Instalar App
+                  </button>
+                )}
+
                 <button 
                 onClick={onLoginClick}
                 className="bg-brand-green/20 border border-brand-green/50 text-brand-neon px-5 py-2 rounded-full text-sm font-medium hover:bg-brand-neon hover:text-black hover:border-brand-neon transition-all flex items-center gap-2 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
@@ -74,7 +106,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
                 </button>
             </div>
 
-            <div className="md:hidden flex items-center">
+            <div className="md:hidden flex items-center gap-4">
+                 {installPrompt && (
+                  <button 
+                    onClick={handleInstallClick}
+                    className="bg-white/10 text-white p-2 rounded-full hover:bg-white hover:text-black transition-all border border-white/10"
+                    title="Instalar App"
+                  >
+                    <Download size={18} />
+                  </button>
+                )}
                 <button onClick={() => setIsOpen(!isOpen)} className="text-white hover:text-brand-neon transition-colors">
                 {isOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>
