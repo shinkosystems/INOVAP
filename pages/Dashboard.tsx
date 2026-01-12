@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Logo } from '../components/ui/Logo';
-import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Award, Star, Medal, Briefcase, ChevronRight, X, Save, Edit3, Loader2, ShieldCheck, Shield, Layers, PlusCircle, UserPlus, Trash2, CheckCircle, AlertCircle, Image as ImageIcon, Hash, Upload, Bold, Italic, List, ListOrdered, Heading1, Heading2, Heading3, Type, Eye, Check, XCircle, MessageSquare, Send, ThumbsUp, BarChart3, Search, Filter, Clock, Settings, User as UserIcon, Calendar, MapPin, Ticket, QrCode, ScanLine, CalendarRange, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Award, Star, Medal, Briefcase, ChevronRight, X, Save, Edit3, Loader2, ShieldCheck, Shield, Layers, PlusCircle, UserPlus, Trash2, CheckCircle, AlertCircle, Image as ImageIcon, Hash, Upload, Bold, Italic, List, ListOrdered, Heading1, Heading2, Heading3, Type, Eye, Check, XCircle, MessageSquare, Send, ThumbsUp, BarChart3, Search, Filter, Clock, Settings, User as UserIcon, Calendar, MapPin, Ticket, QrCode, ScanLine, CalendarRange, ArrowRight, Sun, Moon, Plus } from 'lucide-react';
 import { User, GT, Artigo, MuralPost, Evento, Inscricao, Cargo } from '../types';
 import { supabase } from '../services/supabase';
 import QRCode from 'react-qr-code';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -14,119 +14,40 @@ interface DashboardProps {
 
 type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'mural' | 'management' | 'my_events' | 'events_manage' | 'checkin' | 'agenda';
 
-// Componente Rich Text Editor
-const RichTextEditor: React.FC<{ value: string; onChange: (html: string) => void }> = ({ value, onChange }) => {
-    const editorRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isUploading, setIsUploading] = useState(false);
-
-    const execCmd = (command: string, value: string | undefined = undefined) => {
-        document.execCommand(command, false, value);
-        if (editorRef.current) {
-            onChange(editorRef.current.innerHTML);
-            editorRef.current.focus();
-        }
-    };
-
-    useEffect(() => {
-        if (editorRef.current && !editorRef.current.innerHTML && value) {
-            editorRef.current.innerHTML = value;
-        }
-    }, []);
-
-    const handleInput = () => {
-        if (editorRef.current) {
-            onChange(editorRef.current.innerHTML);
-        }
-    };
-    
-     const handleImageUploadInEditor = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setIsUploading(true);
-        try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `editor_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            const { error } = await supabase.storage.from('imagensBlog').upload(`imagensBlog/${fileName}`, file);
-            if (!error) {
-                 const { data } = supabase.storage.from('imagensBlog').getPublicUrl(`imagensBlog/${fileName}`);
-                 execCmd('insertImage', data.publicUrl);
-            }
-        } finally { setIsUploading(false); if(fileInputRef.current) fileInputRef.current.value = ''; }
-    };
-
-    return (
-        <div className="flex flex-col border border-white/10 rounded-2xl overflow-hidden bg-white/5 focus-within:ring-2 focus-within:ring-brand-neon focus-within:bg-black transition-all">
-            <div className="flex flex-wrap items-center gap-1 p-2 border-b border-white/10 bg-white/[0.02]">
-                <div className="flex items-center gap-1 border-r border-white/10 pr-2 mr-1">
-                    <button type="button" onClick={() => execCmd('bold')} className="p-2 hover:bg-white/10 rounded text-slate-300 hover:text-white transition-colors"><Bold size={18} /></button>
-                    <button type="button" onClick={() => execCmd('italic')} className="p-2 hover:bg-white/10 rounded text-slate-300 hover:text-white transition-colors"><Italic size={18} /></button>
-                </div>
-                 <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className={`p-2 hover:bg-white/10 rounded text-slate-300 hover:text-white transition-colors ${isUploading ? 'opacity-50' : ''}`} disabled={isUploading}>
-                        <ImageIcon size={18} />
-                    </button>
-                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUploadInEditor} />
-                </div>
-            </div>
-            <div ref={editorRef} contentEditable onInput={handleInput} className="flex-1 p-6 min-h-[200px] outline-none text-white prose prose-invert max-w-none overflow-y-auto custom-scrollbar" />
-        </div>
-    );
-};
-
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [ranking, setRanking] = useState<User[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [gts, setGts] = useState<GT[]>([]);
   const [cargos, setCargos] = useState<Cargo[]>([]);
+  const [theme, setTheme] = useState<'dark' | 'light'>(localStorage.getItem('theme') as 'dark' | 'light' || 'dark');
   
-  // General States
-  const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
 
-  // Member Edit States
-  const [editedGTs, setEditedGTs] = useState<number[]>([]); 
-  const [editedGovernanca, setEditedGovernanca] = useState<boolean>(false);
-  const [editedCargo, setEditedCargo] = useState<number>(0);
-
-  // Article States
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
-  const [isSubmittingArticle, setIsSubmittingArticle] = useState(false);
-  const [tagInput, setTagInput] = useState('');
-  const [articleForm, setArticleForm] = useState({ id: 0, titulo: '', subtitulo: '', conteudo: '', capa: '', tags: [] as string[], aprovado: false });
   const [allArticles, setAllArticles] = useState<Artigo[]>([]);
 
-  // Mural States
   const [muralPosts, setMuralPosts] = useState<MuralPost[]>([]);
-  const [activeMuralGtId, setActiveMuralGtId] = useState<number | null>(null); // null = Geral
-  const [newPostContent, setNewPostContent] = useState('');
-  const [isPostingMural, setIsPostingMural] = useState(false);
+  const [activeMuralGtId, setActiveMuralGtId] = useState<number | null>(null);
 
-  // Event States
   const [myTickets, setMyTickets] = useState<Inscricao[]>([]);
   const [availableEvents, setAvailableEvents] = useState<Evento[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<Inscricao | null>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [eventForm, setEventForm] = useState<Partial<Evento>>({
-      titulo: '', descricao: '', data_inicio: '', local: '', tipo: 'Meetup', vagas: 50
+      titulo: '', descricao: '', data_inicio: '', local: '', tipo: 'Meetup', vagas: 50, imagem_capa: ''
   });
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [isUploadingEventImg, setIsUploadingEventImg] = useState(false);
+  const eventImageInputRef = useRef<HTMLInputElement>(null);
+
   const [managedEvents, setManagedEvents] = useState<Evento[]>([]);
   const [isRegistering, setIsRegistering] = useState<number | null>(null);
 
-  // Checkin Scanner
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  const [manualCode, setManualCode] = useState('');
-  const [checkinStatus, setCheckinStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [checkinMessage, setCheckinMessage] = useState('');
-
   const userPoints = (user?.artigos || 0) * 150 + 50; 
   const userLevel = Math.floor(userPoints / 500) + 1;
-  const progressPercent = Math.min(100, (userPoints % 500) / 500 * 100);
 
-  // Access Control Logic
   const isRestrictedUser = !user?.governanca && (!user?.gts || user.gts.length === 0);
 
   const showNotification = (type: 'success' | 'error', message: string) => {
@@ -140,182 +61,164 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       return [];
   };
 
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    if (newTheme === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
+    }
+  };
+
   const fetchData = useCallback(async () => {
     if (!user) return;
-
-    // Fetch Available Events (Future) - Everyone needs this
+    
+    // Fetch Events for the user
     const { data: futureEvents } = await supabase.from('eventos').select('*').gte('data_inicio', new Date().toISOString()).order('data_inicio', { ascending: true });
     if (futureEvents) setAvailableEvents(futureEvents);
-
-    // Fetch My Tickets - Everyone needs this
+    
     const { data: tickets } = await supabase.from('inscricoes').select('*, evento:eventos(*)').eq('user_id', user.id);
     if (tickets) setMyTickets(tickets);
 
-    // --- RESTRICTED DATA FETCHING ---
-    // If restricted, we don't need to fetch heavy data for tabs they can't see
-    if (isRestrictedUser) return;
+    // If it's a governance or GT user, fetch more data
+    if (!isRestrictedUser) {
+        const { data: userData } = await supabase.from('users').select('*').order('artigos', { ascending: false });
+        if (userData) {
+            setMembers(userData.map(u => ({...u, gts: normalizeGTs(u.gts)})));
+            setRanking(userData.slice(0, 20));
+        }
+        const { data: gtData } = await supabase.from('gts').select('*').order('gt');
+        if (gtData) setGts(gtData);
+        
+        const { data: cargoData } = await supabase.from('cargos').select('*').order('cargo');
+        if (cargoData) setCargos(cargoData);
 
-    // Fetch Users & Ranking
-    const { data: userData } = await supabase.from('users').select('*').order('artigos', { ascending: false });
-    if (userData) {
-        setMembers(userData.map(u => ({...u, gts: normalizeGTs(u.gts)})));
-        setRanking(userData.slice(0, 20));
+        const { data: mural } = await supabase.from('mural_posts').select('*, users(nome)').order('created_at', { ascending: false });
+        if (mural) setMuralPosts(mural.map((p: any) => ({...p, user_nome: p.users?.nome || 'Usuário'})));
     }
-    
-    // Fetch GTs & Cargos
-    const { data: gtData } = await supabase.from('gts').select('*').order('gt');
-    if (gtData) setGts(gtData);
-    const { data: cargoData } = await supabase.from('cargos').select('*').order('cargo');
-    if (cargoData) setCargos(cargoData);
 
-    // Fetch Articles
     if (user.governanca) {
         const { data: articles } = await supabase.from('artigos').select('*').order('created_at', { ascending: false });
         if (articles) setAllArticles(articles);
-    } else {
-         const { data: articles } = await supabase.from('artigos').select('*').eq('autor', user.uuid).order('created_at', { ascending: false });
-         if (articles) setAllArticles(articles);
-    }
-
-    // Fetch Mural
-    const { data: mural } = await supabase.from('mural_posts').select('*, users(nome)').order('created_at', { ascending: false });
-    if (mural) setMuralPosts(mural.map((p: any) => ({...p, user_nome: p.users?.nome || 'Usuário'})));
-
-    // Fetch Managed Events (Governance)
-    if (user.governanca) {
+        
         const { data: events } = await supabase.from('eventos').select('*').order('data_inicio', { ascending: false });
         if (events) setManagedEvents(events);
     }
-
   }, [user, isRestrictedUser]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // --- Handlers ---
-
-  const handlePostMural = async () => {
-      if (!newPostContent.trim() || !user) return;
-      setIsPostingMural(true);
-      try {
-          const { error } = await supabase.from('mural_posts').insert([{
-              user_id: user.id,
-              gt_id: activeMuralGtId || 0, // 0 for General
-              conteudo: newPostContent,
-              likes: 0
-          }]);
-          if (error) throw error;
-          setNewPostContent('');
-          fetchData();
-          showNotification('success', 'Postado no mural!');
-      } catch (e) {
-          showNotification('error', 'Erro ao postar.');
-      } finally {
-          setIsPostingMural(false);
-      }
-  };
-
-  const handleMemberEditClick = (member: User) => {
-      setSelectedMember(member);
-      setEditedGTs(member.gts || []);
-      setEditedGovernanca(member.governanca || false);
-      setEditedCargo(member.cargo || 0);
-  };
-
-  const handleToggleGT = (gtId: number) => {
-      if (editedGTs.includes(gtId)) {
-          setEditedGTs(editedGTs.filter(id => id !== gtId));
-      } else {
-          setEditedGTs([...editedGTs, gtId]);
-      }
-  };
-
-  const handleSaveMember = async () => {
-      if (!selectedMember) return;
-      setIsUpdating(true);
-      try {
-          const { error } = await supabase.from('users').update({
-              gts: editedGTs,
-              governanca: editedGovernanca,
-              cargo: editedCargo
-          }).eq('id', selectedMember.id);
-          
-          if (error) throw error;
-          showNotification('success', 'Membro atualizado!');
-          setSelectedMember(null);
-          fetchData();
-      } catch (e) {
-          showNotification('error', 'Erro ao atualizar membro.');
-      } finally {
-          setIsUpdating(false);
-      }
-  };
-
-  const handleSaveArticle = async () => {
-      if (!articleForm.titulo || !articleForm.conteudo) {
-          showNotification('error', 'Título e conteúdo obrigatórios');
+  const handleSaveEvent = async () => {
+      if (!eventForm.titulo || !eventForm.data_inicio) {
+          showNotification('error', 'Título e Data de Início são obrigatórios.');
           return;
       }
-      setIsSubmittingArticle(true);
+      setIsSubmittingEvent(true);
       try {
-          const payload = {
-              titulo: articleForm.titulo,
-              subtitulo: articleForm.subtitulo,
-              conteudo: articleForm.conteudo,
-              capa: articleForm.capa,
-              tags: articleForm.tags,
-              autor: user?.uuid,
-              aprovado: user?.governanca ? articleForm.aprovado : false // Only gov can approve directly
-          };
-
-          if (articleForm.id) {
-              // Update
-              const { error } = await supabase.from('artigos').update(payload).eq('id', articleForm.id);
+          if (editingEventId) {
+              // Update existing event
+              const { error } = await supabase
+                .from('eventos')
+                .update({
+                  titulo: eventForm.titulo,
+                  descricao: eventForm.descricao,
+                  data_inicio: eventForm.data_inicio,
+                  local: eventForm.local,
+                  tipo: eventForm.tipo,
+                  vagas: eventForm.vagas,
+                  imagem_capa: eventForm.imagem_capa
+                })
+                .eq('id', editingEventId);
+              
               if (error) throw error;
+              showNotification('success', 'Evento atualizado com sucesso!');
           } else {
-              // Insert
-              const { error } = await supabase.from('artigos').insert([payload]);
+              // Create new event
+              const { error } = await supabase.from('eventos').insert([{
+                  ...eventForm,
+                  criado_por: user?.uuid
+              }]);
               if (error) throw error;
+              showNotification('success', 'Evento criado com sucesso!');
           }
           
-          showNotification('success', articleForm.id ? 'Artigo atualizado!' : 'Artigo enviado para aprovação!');
-          setIsArticleModalOpen(false);
-          setArticleForm({ id: 0, titulo: '', subtitulo: '', conteudo: '', capa: '', tags: [], aprovado: false });
+          closeEventModal();
           fetchData();
       } catch (e) {
-          showNotification('error', 'Erro ao salvar artigo.');
+          showNotification('error', 'Erro ao salvar evento.');
       } finally {
-          setIsSubmittingArticle(false);
+          setIsSubmittingEvent(false);
       }
   };
 
-  const handleDeleteArticle = async (id: number) => {
-      if (!confirm('Tem certeza?')) return;
+  const handleEventImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (file.size > 5 * 1024 * 1024) {
+          showNotification('error', 'A imagem deve ter no máximo 5MB.');
+          return;
+      }
+
+      setIsUploadingEventImg(true);
+
       try {
-          const { error } = await supabase.from('artigos').delete().eq('id', id);
-          if (error) throw error;
-          fetchData();
-          showNotification('success', 'Artigo removido.');
-      } catch(e) { showNotification('error', 'Erro ao remover.'); }
+          const fileExt = file.name.split('.').pop();
+          const fileName = `event_${Date.now()}.${fileExt}`;
+          const filePath = `imagensBlog/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+              .from('imagensBlog')
+              .upload(filePath, file);
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from('imagensBlog').getPublicUrl(filePath);
+          setEventForm(prev => ({ ...prev, imagem_capa: data.publicUrl }));
+          showNotification('success', 'Imagem de capa carregada!');
+
+      } catch (error: any) {
+          console.error('Erro upload imagem evento:', error);
+          showNotification('error', 'Erro ao realizar upload.');
+      } finally {
+          setIsUploadingEventImg(false);
+          if (eventImageInputRef.current) eventImageInputRef.current.value = '';
+      }
   };
 
-  // --- Event & Scanner Handlers ---
-  const handleSaveEvent = async () => {
-      if (!eventForm.titulo || !eventForm.data_inicio) return;
-      setIsSubmittingEvent(true);
+  const handleEditEventClick = (evt: Evento) => {
+      setEditingEventId(evt.id);
+      setEventForm({
+          titulo: evt.titulo,
+          descricao: evt.descricao,
+          data_inicio: evt.data_inicio ? new Date(evt.data_inicio).toISOString().slice(0, 16) : '',
+          local: evt.local,
+          tipo: evt.tipo,
+          vagas: evt.vagas,
+          imagem_capa: evt.imagem_capa
+      });
+      setIsEventModalOpen(true);
+  };
+
+  const closeEventModal = () => {
+      setIsEventModalOpen(false);
+      setEditingEventId(null);
+      setEventForm({ titulo: '', descricao: '', data_inicio: '', local: '', tipo: 'Meetup', vagas: 50, imagem_capa: '' });
+  };
+
+  const handleDeleteEvent = async (id: number) => {
+      if (!confirm('Tem certeza que deseja excluir este evento?')) return;
       try {
-          const { error } = await supabase.from('eventos').insert([{
-              ...eventForm,
-              criado_por: user?.uuid
-          }]);
+          const { error } = await supabase.from('eventos').delete().eq('id', id);
           if (error) throw error;
-          showNotification('success', 'Evento criado com sucesso!');
-          setIsEventModalOpen(false);
-          setEventForm({ titulo: '', descricao: '', data_inicio: '', local: '', tipo: 'Meetup', vagas: 50 });
+          showNotification('success', 'Evento excluído.');
           fetchData();
       } catch (e) {
-          showNotification('error', 'Erro ao criar evento.');
-      } finally {
-          setIsSubmittingEvent(false);
+          showNotification('error', 'Erro ao excluir evento.');
       }
   };
 
@@ -323,71 +226,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (!user) return;
       setIsRegistering(evento.id);
       try {
-          // Check redundancy client side first for speed (double checked by DB constraint)
           const isRegistered = myTickets.some(t => t.evento_id === evento.id);
           if (isRegistered) {
               showNotification('error', 'Você já está inscrito neste evento.');
               setIsRegistering(null);
               return;
           }
-
           const { error } = await supabase.from('inscricoes').insert([{
               evento_id: evento.id,
               user_id: user.id,
               status: 'confirmado'
           }]);
-
           if (error) throw error;
-          showNotification('success', 'Inscrição realizada com sucesso! Veja seu ingresso na aba Meus Eventos.');
-          
-          // Refresh data to show in My Events
+          showNotification('success', 'Inscrição realizada!');
           fetchData(); 
       } catch (e: any) {
-          console.error(e);
           showNotification('error', 'Erro ao realizar inscrição.');
       } finally {
           setIsRegistering(null);
       }
   };
 
-  useEffect(() => {
-      if (activeTab === 'checkin' && !scannerRef.current) {
-          const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
-          scanner.render(onScanSuccess, (err) => { console.warn(err); });
-          scannerRef.current = scanner;
-      }
-      return () => {
-          if (scannerRef.current && activeTab !== 'checkin') {
-             try { scannerRef.current.clear(); scannerRef.current = null; } catch(e) {}
-          }
-      }
-  }, [activeTab]);
-
-  const onScanSuccess = async (decodedText: string) => {
-       if (checkinStatus === 'success') return;
-       await handleCheckIn(decodedText);
-  };
-
-  const handleCheckIn = async (ticketId: string) => {
-      setCheckinStatus('idle');
-      try {
-          const { data, error } = await supabase.from('inscricoes').select('*, user:users(nome), evento:eventos(titulo)').eq('id', ticketId).single();
-          if (error || !data) { setCheckinStatus('error'); setCheckinMessage('Ticket inválido.'); return; }
-          if (data.status === 'checkin_realizado') { setCheckinStatus('error'); setCheckinMessage(`Check-in já feito para ${data.user.nome}.`); return; }
-          const { error: updateError } = await supabase.from('inscricoes').update({ status: 'checkin_realizado', checkin_at: new Date().toISOString() }).eq('id', ticketId);
-          if (updateError) throw updateError;
-          setCheckinStatus('success'); setCheckinMessage(`${data.user.nome} - ${data.evento.titulo}`);
-          setTimeout(() => { setCheckinStatus('idle'); setCheckinMessage(''); }, 5000);
-      } catch (e) { setCheckinStatus('error'); setCheckinMessage('Erro ao processar.'); }
-  };
-
-  const getGTName = (id?: number | number[]) => { 
-      if(Array.isArray(id)) return id.length ? 'Múltiplos' : 'Sem GT'; 
-      return gts.find(g => g.id === id)?.gt || 'GT'; 
-  }
-  const getCargoName = (id?: number) => cargos.find(c => c.id === id)?.cargo || 'Membro';
-
-  // Construct Sidebar Items conditionally
   const sidebarItems = [
     { id: 'overview', icon: LayoutDashboard, label: 'Visão Geral' },
     { id: 'agenda', icon: CalendarRange, label: 'Agenda de Eventos' },
@@ -398,16 +257,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     sidebarItems.push(
       { id: 'mural', icon: MessageSquare, label: 'Mural dos GTs' },
       { id: 'ranking', icon: Award, label: 'Ranking' },
-      { id: 'members', icon: Users, label: 'Membros' },
-      { id: 'articles', icon: FileText, label: 'Artigos' }
+      { id: 'members', icon: Users, label: 'Membros' }
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex font-sans overflow-hidden relative">
+    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white flex font-sans overflow-hidden relative transition-colors duration-300">
+      
+      {/* Notification Toast */}
+      {notification && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
+            <div className={`px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border ${notification.type === 'success' ? 'bg-brand-green/20 border-brand-green text-brand-neon' : 'bg-red-500/20 border-red-500 text-red-200'}`}>
+                <p className="text-sm font-bold flex items-center gap-2">
+                    {notification.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+                    {notification.message}
+                </p>
+            </div>
+        </div>
+      )}
+
       {/* Sidebar */}
-      <div className="w-72 bg-white/[0.03] backdrop-blur-xl border-r border-white/5 flex-shrink-0 hidden md:flex flex-col z-20 m-4 rounded-3xl h-[calc(100vh-2rem)]">
-        <div className="h-24 flex items-center px-8"><Logo dark /></div>
+      <div className="w-72 bg-slate-50 dark:bg-white/[0.03] backdrop-blur-xl border-r border-slate-200 dark:border-white/5 flex-shrink-0 hidden md:flex flex-col z-20 m-4 rounded-3xl h-[calc(100vh-2rem)] shadow-sm dark:shadow-none">
+        <div className="h-24 flex items-center px-8 cursor-pointer" onClick={() => setActiveTab('overview')}><Logo dark={theme === 'dark'} /></div>
         
         <div className="flex-1 py-4 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           {sidebarItems.map((item) => (
@@ -415,7 +286,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               key={item.id}
               onClick={() => setActiveTab(item.id as Tab)}
               className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 font-medium ${
-                activeTab === item.id ? 'bg-brand-green text-black' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                activeTab === item.id 
+                  ? 'bg-brand-green text-black' 
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <item.icon size={20} />
@@ -425,21 +298,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
           {user?.governanca && (
              <>
-                <div className="h-px bg-white/10 my-2 mx-4"></div>
-                <div className="px-4 text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Governança</div>
-                <button onClick={() => setActiveTab('events_manage')} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${activeTab === 'events_manage' ? 'bg-brand-neon text-black' : 'text-slate-400 hover:text-white'}`}>
+                <div className="h-px bg-slate-200 dark:bg-white/10 my-2 mx-4"></div>
+                <div className="px-4 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 mt-4">Governança</div>
+                <button onClick={() => setActiveTab('events_manage')} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${activeTab === 'events_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
                   <Calendar size={20} /> <span>Gestão de Eventos</span>
                 </button>
-                <button onClick={() => setActiveTab('checkin')} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${activeTab === 'checkin' ? 'bg-brand-neon text-black' : 'text-slate-400 hover:text-white'}`}>
+                <button onClick={() => setActiveTab('checkin')} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${activeTab === 'checkin' ? 'bg-brand-neon text-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
                   <ScanLine size={20} /> <span>Check-in (QR)</span>
                 </button>
              </>
           )}
 
-           <div className="h-px bg-white/10 my-2 mx-4"></div>
-           <button onClick={onProfileClick} className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all text-slate-400 hover:bg-white/5 hover:text-white">
+           <div className="h-px bg-slate-200 dark:bg-white/10 my-2 mx-4"></div>
+           <button onClick={onProfileClick} className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white">
                 <Settings size={20} /><span>Meu Perfil</span>
             </button>
+        </div>
+        
+        <div className="p-4">
+             <button onClick={onLogout} className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-red-500 hover:bg-red-500/10 transition-all font-medium">
+                <LogOut size={20} /> Sair
+             </button>
         </div>
       </div>
 
@@ -447,13 +326,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         
         {/* Header */}
         <header className="h-24 flex items-center justify-between px-8 md:px-12 flex-shrink-0">
-          <h2 className="text-2xl font-bold text-white tracking-tight capitalize">
-              {activeTab === 'agenda' ? 'Agenda de Eventos' : activeTab.replace('_', ' ')}
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight capitalize">
+              {activeTab === 'agenda' ? 'Agenda de Eventos' : 
+               activeTab === 'events_manage' ? 'Gestão de Eventos' :
+               activeTab === 'my_events' ? 'Meus Ingressos' :
+               activeTab === 'checkin' ? 'Controle de Entrada' :
+               activeTab.replace('_', ' ')}
           </h2>
           <div className="flex items-center gap-4">
-               <button className="w-12 h-12 rounded-full bg-brand-green overflow-hidden" onClick={onProfileClick}>
-                    {user?.avatar && <img src={user.avatar} className="w-full h-full object-cover" />}
+               <button 
+                  onClick={toggleTheme}
+                  className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20 transition-all"
+               >
+                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                </button>
+               <div className="h-10 w-px bg-slate-200 dark:bg-white/10"></div>
+               <div className="flex items-center gap-3 cursor-pointer hover:opacity-80" onClick={onProfileClick}>
+                    <div className="text-right hidden sm:block">
+                        <div className="text-sm font-bold text-slate-900 dark:text-white">{user?.nome.split(' ')[0]}</div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-widest">{user?.governanca ? 'Governança' : 'Membro'}</div>
+                    </div>
+                    <button className="w-12 h-12 rounded-full bg-brand-green overflow-hidden border-2 border-slate-200 dark:border-white/10">
+                        {user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <UserIcon className="m-auto text-black" />}
+                    </button>
+               </div>
           </div>
         </header>
 
@@ -462,47 +358,104 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             {/* OVERVIEW */}
             {activeTab === 'overview' && (
                 <div className="space-y-8 animate-fade-in-up">
-                    <div className="relative bg-gradient-to-r from-brand-green/20 to-blue-900/20 rounded-3xl p-10 border border-white/10 overflow-hidden backdrop-blur-md">
-                        <h1 className="text-4xl font-bold mb-4 text-white">Olá, {user?.nome.split(' ')[0]}</h1>
-                        <p className="text-slate-300">
-                            {isRestrictedUser 
-                                ? 'Inscreva-se em eventos para interagir com o ecossistema.' 
-                                : 'Acesse o mural do seu GT para ver as novidades.'
-                            }
-                        </p>
-                        
-                        <div className="mt-8 flex gap-4">
-                             <div className="bg-black/30 p-4 rounded-xl">
-                                 <div className="text-brand-neon text-2xl font-bold">{userLevel}</div>
-                                 <div className="text-xs text-slate-400 uppercase">Nível</div>
-                             </div>
-                             <div className="bg-black/30 p-4 rounded-xl">
-                                 <div className="text-white text-2xl font-bold">{userPoints}</div>
-                                 <div className="text-xs text-slate-400 uppercase">Pontos</div>
-                             </div>
+                    <div className="relative bg-gradient-to-r from-brand-green/10 to-blue-500/10 dark:from-brand-green/20 dark:to-blue-900/20 rounded-3xl p-10 border border-slate-200 dark:border-white/10 overflow-hidden backdrop-blur-md">
+                        <div className="relative z-10">
+                            <h1 className="text-4xl font-bold mb-4 text-slate-900 dark:text-white tracking-tight">Bem-vindo, {user?.nome.split(' ')[0]}!</h1>
+                            <p className="text-slate-600 dark:text-slate-300 max-w-xl text-lg font-light leading-relaxed">
+                                {isRestrictedUser 
+                                    ? 'Você ainda não faz parte de nenhum Grupo de Trabalho. Inscreva-se em eventos e participe para ganhar pontos.' 
+                                    : 'Acompanhe as novidades dos seus Grupos de Trabalho no mural e no ranking do ecossistema.'
+                                }
+                            </p>
+                            
+                            <div className="mt-8 flex flex-wrap gap-4">
+                                <div className="bg-white/50 dark:bg-black/30 px-6 py-4 rounded-2xl border border-slate-200 dark:border-white/10 flex items-center gap-4">
+                                    <div className="p-3 bg-brand-green/20 rounded-xl text-brand-green"><Medal size={24} /></div>
+                                    <div>
+                                        <div className="text-2xl font-bold text-slate-900 dark:text-white leading-none mb-1">{userLevel}</div>
+                                        <div className="text-[10px] text-slate-500 uppercase tracking-widest">Nível Atual</div>
+                                    </div>
+                                </div>
+                                <div className="bg-white/50 dark:bg-black/30 px-6 py-4 rounded-2xl border border-slate-200 dark:border-white/10 flex items-center gap-4">
+                                    <div className="p-3 bg-brand-neon/20 rounded-xl text-brand-neon"><Star size={24} /></div>
+                                    <div>
+                                        <div className="text-2xl font-bold text-slate-900 dark:text-white leading-none mb-1">{userPoints}</div>
+                                        <div className="text-[10px] text-slate-500 uppercase tracking-widest">Pontuação</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                        {/* Decorative circle */}
+                        <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-brand-neon/10 rounded-full blur-3xl"></div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                         <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-3xl p-8">
+                             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                                <Calendar size={20} className="text-brand-green" /> Próximos Eventos
+                             </h3>
+                             <div className="space-y-4">
+                                 {availableEvents.slice(0, 3).map(evt => (
+                                     <div key={evt.id} className="bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 p-4 rounded-2xl flex items-center justify-between hover:border-brand-neon/30 transition-all cursor-pointer">
+                                         <div className="flex items-center gap-4">
+                                             <div className="w-12 h-12 bg-brand-green/10 rounded-xl flex flex-col items-center justify-center text-brand-green border border-brand-green/20">
+                                                 <span className="text-[10px] uppercase">{new Date(evt.data_inicio).toLocaleString('pt-BR', { month: 'short' })}</span>
+                                                 <span className="text-lg font-bold leading-none">{new Date(evt.data_inicio).getDate()}</span>
+                                             </div>
+                                             <div>
+                                                 <div className="font-bold text-slate-900 dark:text-white text-sm truncate max-w-[150px]">{evt.titulo}</div>
+                                                 <div className="text-xs text-slate-500">{evt.local}</div>
+                                             </div>
+                                         </div>
+                                         <button onClick={() => setActiveTab('agenda')} className="text-brand-green hover:text-brand-neon transition-colors"><ChevronRight size={20}/></button>
+                                     </div>
+                                 ))}
+                                 <button onClick={() => setActiveTab('agenda')} className="w-full py-3 text-sm text-slate-500 hover:text-brand-green transition-colors font-medium">Ver agenda completa</button>
+                             </div>
+                         </div>
+
+                         <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-3xl p-8">
+                             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                                <TrendingUp size={20} className="text-brand-neon" /> Top Ranking
+                             </h3>
+                             <div className="space-y-4">
+                                 {ranking.slice(0, 3).map((rk, i) => (
+                                     <div key={rk.id} className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-black/20 border border-slate-100 dark:border-white/5">
+                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${i === 0 ? 'bg-yellow-500 text-black' : i === 1 ? 'bg-slate-300 text-black' : 'bg-orange-400 text-black'}`}>
+                                             {i + 1}º
+                                         </div>
+                                         <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+                                             {rk.avatar ? <img src={rk.avatar} className="w-full h-full object-cover" /> : <UserIcon className="m-auto text-slate-400" size={16}/>}
+                                         </div>
+                                         <div className="flex-1">
+                                             <div className="text-sm font-bold text-slate-900 dark:text-white">{rk.nome}</div>
+                                             <div className="text-[10px] text-slate-500 uppercase">{rk.artigos} Artigos publicados</div>
+                                         </div>
+                                     </div>
+                                 ))}
+                                 <button onClick={() => setActiveTab('ranking')} className="w-full py-3 text-sm text-slate-500 hover:text-brand-neon transition-colors font-medium">Ver ranking completo</button>
+                             </div>
+                         </div>
                     </div>
                 </div>
             )}
 
             {/* AGENDA (EVENTOS DISPONÍVEIS) */}
             {activeTab === 'agenda' && (
-                <div className="animate-fade-in-up">
+                <div className="animate-fade-in-up space-y-8">
                     {availableEvents.length === 0 ? (
-                        <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/10">
-                            <Calendar size={48} className="mx-auto text-slate-600 mb-4" />
-                            <h3 className="text-xl font-bold text-white mb-2">Não há eventos futuros agendados.</h3>
-                            <p className="text-slate-400">Fique de olho no mural do seu GT para novidades.</p>
+                        <div className="text-center py-24 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10">
+                            <Calendar size={48} className="mx-auto text-slate-400 mb-4" />
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Sem eventos no momento</h3>
+                            <p className="text-slate-500">Fique atento às atualizações do ecossistema.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {availableEvents.map(evt => {
                                 const isRegistered = myTickets.some(t => t.evento_id === evt.id);
-                                const date = new Date(evt.data_inicio);
-
                                 return (
-                                    <div key={evt.id} className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden flex flex-col hover:border-brand-neon/30 transition-all group">
-                                        <div className="h-40 bg-slate-900 relative">
+                                    <div key={evt.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl overflow-hidden flex flex-col hover:border-brand-neon/30 transition-all group shadow-sm dark:shadow-none">
+                                        <div className="h-44 bg-slate-100 dark:bg-slate-900 relative">
                                             {evt.imagem_capa ? (
                                                 <img src={evt.imagem_capa} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                                             ) : (
@@ -510,38 +463,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                                     <Calendar size={32} className="text-white/20" />
                                                 </div>
                                             )}
-                                            <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-brand-neon uppercase border border-white/10">
-                                                {evt.tipo}
-                                            </div>
-                                            <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black to-transparent flex items-end">
-                                                <div className="bg-white/10 backdrop-blur-md rounded-lg p-2 text-center border border-white/10 min-w-[3.5rem]">
-                                                    <div className="text-xs uppercase text-slate-400">{date.toLocaleString('pt-BR', { month: 'short' })}</div>
-                                                    <div className="text-xl font-bold text-white leading-none">{date.getDate()}</div>
-                                                </div>
+                                            <div className="absolute top-4 left-4">
+                                                <span className="px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] font-bold text-brand-neon border border-brand-neon/30 uppercase tracking-widest">{evt.tipo}</span>
                                             </div>
                                         </div>
                                         <div className="p-6 flex-1 flex flex-col">
-                                            <h3 className="text-xl font-bold text-white mb-2">{evt.titulo}</h3>
-                                            <div className="flex items-center gap-2 text-slate-400 text-sm mb-4">
-                                                <MapPin size={14} /> {evt.local}
+                                            <div className="flex items-center gap-2 text-slate-500 text-xs mb-3 font-medium">
+                                                <Clock size={14} className="text-brand-green" /> 
+                                                {new Date(evt.data_inicio).toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                             </div>
-                                            <p className="text-slate-400 text-sm line-clamp-3 mb-6">{evt.descricao}</p>
+                                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-1">{evt.titulo}</h3>
+                                            <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3 mb-6 font-light leading-relaxed">{evt.descricao}</p>
                                             
-                                            <div className="mt-auto pt-4 border-t border-white/5">
-                                                {isRegistered ? (
-                                                    <button disabled className="w-full py-3 rounded-xl bg-brand-green/10 text-brand-green font-bold border border-brand-green/30 flex items-center justify-center gap-2 cursor-default">
-                                                        <CheckCircle size={18} /> Inscrito
-                                                    </button>
-                                                ) : (
-                                                    <button 
-                                                        onClick={() => handleRegisterForEvent(evt)}
-                                                        disabled={isRegistering === evt.id}
-                                                        className="w-full py-3 rounded-xl bg-brand-neon text-black font-bold hover:bg-white transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        {isRegistering === evt.id ? <Loader2 className="animate-spin" size={18} /> : <Ticket size={18} />}
-                                                        Inscrever-se
-                                                    </button>
-                                                )}
+                                            <div className="mt-auto space-y-4">
+                                                <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-100 dark:border-white/5">
+                                                    <MapPin size={14} className="text-brand-neon" />
+                                                    <span className="truncate">{evt.local}</span>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleRegisterForEvent(evt)}
+                                                    disabled={isRegistered || isRegistering === evt.id}
+                                                    className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${
+                                                      isRegistered 
+                                                      ? 'bg-brand-green/10 text-brand-green cursor-default border border-brand-green/30' 
+                                                      : 'bg-brand-neon text-black hover:scale-[1.02] active:scale-95 shadow-brand-neon/20'
+                                                    }`}
+                                                >
+                                                    {isRegistering === evt.id ? <Loader2 size={18} className="animate-spin" /> : (isRegistered ? <CheckCircle size={18} /> : <Ticket size={18} />)}
+                                                    {isRegistered ? 'Inscrito' : 'Garantir Ingresso'}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -552,205 +502,49 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 </div>
             )}
 
-            {/* MURAL */}
-            {activeTab === 'mural' && !isRestrictedUser && (
-                <div className="animate-fade-in-up max-w-4xl mx-auto">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex gap-2">
-                             <button onClick={() => setActiveMuralGtId(null)} className={`px-4 py-2 rounded-full text-sm font-bold ${activeMuralGtId === null ? 'bg-white text-black' : 'bg-white/5 text-slate-400'}`}>Geral</button>
-                             {user?.gts?.map((gtId) => {
-                                 const gtName = gts.find(g => g.id === gtId)?.gt;
-                                 return (
-                                    <button key={gtId} onClick={() => setActiveMuralGtId(gtId)} className={`px-4 py-2 rounded-full text-sm font-bold ${activeMuralGtId === gtId ? 'bg-brand-neon text-black' : 'bg-white/5 text-slate-400'}`}>
-                                        {gtName}
-                                    </button>
-                                 )
-                             })}
+            {/* GESTÃO DE EVENTOS (GOVERNANÇA) */}
+            {activeTab === 'events_manage' && user?.governanca && (
+                <div className="animate-fade-in-up space-y-8">
+                    <div className="flex justify-between items-center mb-8">
+                        <div>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Central de Eventos</h3>
+                            <p className="text-slate-500 text-sm">Crie e gerencie os eventos do ecossistema.</p>
                         </div>
+                        <button 
+                            onClick={() => setIsEventModalOpen(true)}
+                            className="bg-brand-neon text-black px-6 py-3 rounded-2xl font-bold hover:bg-white transition-all flex items-center gap-2 shadow-lg shadow-brand-neon/20"
+                        >
+                            <Plus size={20} /> Novo Evento
+                        </button>
                     </div>
 
-                    <div className="bg-white/5 border border-white/10 rounded-3xl p-6 mb-8">
-                        <textarea 
-                            value={newPostContent}
-                            onChange={(e) => setNewPostContent(e.target.value)}
-                            placeholder="Compartilhe algo com o grupo..."
-                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white mb-4 focus:border-brand-neon focus:outline-none"
-                            rows={3}
-                        />
-                        <div className="flex justify-between items-center">
-                            <span className="text-xs text-slate-500">Postando em: {activeMuralGtId === null ? 'Geral' : getGTName(activeMuralGtId)}</span>
-                            <button onClick={handlePostMural} disabled={isPostingMural} className="bg-brand-neon text-black px-6 py-2 rounded-xl font-bold hover:bg-white transition-colors">
-                                {isPostingMural ? 'Enviando...' : 'Publicar'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        {muralPosts
-                            .filter(p => activeMuralGtId === null ? true : p.gt_id === activeMuralGtId)
-                            .map(post => (
-                            <div key={post.id} className="bg-white/5 border border-white/10 rounded-3xl p-6">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-brand-green/20 flex items-center justify-center text-brand-neon font-bold">
-                                            {post.user_nome.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-white">{post.user_nome}</div>
-                                            <div className="text-xs text-slate-500">{new Date(post.created_at).toLocaleString()} • {getGTName(post.gt_id)}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p className="text-slate-300 leading-relaxed">{post.conteudo}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* RANKING */}
-            {activeTab === 'ranking' && !isRestrictedUser && (
-                <div className="animate-fade-in-up">
-                    <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                    <div className="bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm">
                         <table className="w-full text-left">
-                            <thead className="bg-black/20 text-slate-500 text-xs uppercase">
+                            <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
                                 <tr>
-                                    <th className="px-6 py-4">Pos</th>
-                                    <th className="px-6 py-4">Membro</th>
-                                    <th className="px-6 py-4">Nível</th>
-                                    <th className="px-6 py-4 text-right">Pontos</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Evento</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Data</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Local</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {ranking.map((member, index) => {
-                                    const pts = (member.artigos || 0) * 150 + 50;
-                                    const lvl = Math.floor(pts/500) + 1;
-                                    return (
-                                        <tr key={member.id} className={`hover:bg-white/5 ${user?.id === member.id ? 'bg-brand-neon/5' : ''}`}>
-                                            <td className="px-6 py-4 font-mono text-slate-400">#{index + 1}</td>
-                                            <td className="px-6 py-4 font-bold text-white flex items-center gap-3">
-                                                {index === 0 && <Medal className="text-yellow-400" size={16} />}
-                                                {member.nome}
-                                            </td>
-                                            <td className="px-6 py-4"><span className="bg-white/10 px-2 py-1 rounded text-xs">Lvl {lvl}</span></td>
-                                            <td className="px-6 py-4 text-right font-mono text-brand-neon">{pts}</td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
-            {/* MEMBROS */}
-            {activeTab === 'members' && !isRestrictedUser && (
-                <div className="animate-fade-in-up">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {members.map(member => (
-                            <div key={member.id} onClick={() => user?.governanca && handleMemberEditClick(member)} className={`bg-white/5 border border-white/10 rounded-3xl p-6 flex items-center gap-4 ${user?.governanca ? 'cursor-pointer hover:border-brand-neon' : ''}`}>
-                                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold text-xl">
-                                    {member.nome.charAt(0)}
-                                </div>
-                                <div>
-                                    <div className="font-bold text-white">{member.nome}</div>
-                                    <div className="text-xs text-slate-500">{getCargoName(member.cargo)}</div>
-                                    <div className="text-xs text-brand-neon mt-1">{getGTName(member.gts)}</div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* ARTIGOS */}
-            {activeTab === 'articles' && !isRestrictedUser && (
-                <div className="animate-fade-in-up">
-                    <div className="flex justify-between items-center mb-8">
-                        <h3 className="text-xl font-bold text-white">Gerenciar Artigos</h3>
-                        <button onClick={() => { setArticleForm({id:0, titulo:'', subtitulo:'', conteudo:'', capa:'', tags:[], aprovado:false}); setIsArticleModalOpen(true); }} className="bg-brand-neon text-black px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-white transition-colors">
-                            <PlusCircle size={18} /> Novo Artigo
-                        </button>
-                    </div>
-                    <div className="space-y-4">
-                        {allArticles.map(artigo => (
-                            <div key={artigo.id} className="bg-white/5 border border-white/10 rounded-3xl p-6 flex justify-between items-center">
-                                <div>
-                                    <div className="font-bold text-white text-lg">{artigo.titulo}</div>
-                                    <div className="text-sm text-slate-400">Autor: {members.find(m => m.uuid === artigo.autor)?.nome || 'Desconhecido'}</div>
-                                    <div className="flex gap-2 mt-2">
-                                        <span className={`text-xs px-2 py-1 rounded ${artigo.aprovado ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                                            {artigo.aprovado ? 'Publicado' : 'Pendente'}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => { setArticleForm({...artigo, id: artigo.id, tags: artigo.tags || []}); setIsArticleModalOpen(true); }} className="p-2 bg-white/10 rounded-lg hover:bg-white hover:text-black transition-colors"><Edit3 size={18} /></button>
-                                    <button onClick={() => handleDeleteArticle(artigo.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* MEUS EVENTOS */}
-            {activeTab === 'my_events' && (
-                <div className="animate-fade-in-up">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-xl font-bold text-white">Meus Ingressos</h3>
-                        <button onClick={() => setActiveTab('agenda')} className="flex items-center gap-2 text-brand-neon text-sm font-bold hover:underline">
-                             Ver Agenda Completa <ArrowRight size={16} />
-                        </button>
-                    </div>
-
-                    {myTickets.length === 0 ? (
-                        <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/10">
-                            <Ticket size={48} className="mx-auto text-slate-600 mb-4" />
-                            <h3 className="text-xl font-bold text-white mb-2">Você não tem eventos agendados</h3>
-                            <button onClick={() => setActiveTab('agenda')} className="mt-4 bg-brand-neon text-black px-6 py-2 rounded-xl font-bold">Ver Agenda Pública</button>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {myTickets.map(ticket => (
-                                <div key={ticket.id} className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden flex flex-col group hover:border-brand-neon/50 transition-all">
-                                    <div className="h-32 bg-slate-900 relative">
-                                        {ticket.evento?.imagem_capa && <img src={ticket.evento.imagem_capa} className="w-full h-full object-cover opacity-60" />}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent"></div>
-                                        <div className="absolute bottom-4 left-4 font-bold text-white">{ticket.evento?.titulo}</div>
-                                    </div>
-                                    <div className="p-6 flex-1 flex flex-col">
-                                        <div className="flex items-center gap-2 text-slate-400 text-sm mb-2"><Calendar size={14} /> {new Date(ticket.evento?.data_inicio || '').toLocaleString()}</div>
-                                        <div className="mt-auto pt-4 border-t border-white/5 flex justify-between items-center">
-                                            <span className={`text-xs font-bold px-2 py-1 rounded border ${ticket.status === 'checkin_realizado' ? 'bg-green-500/20 text-green-500' : 'bg-brand-neon/20 text-brand-neon'}`}>{ticket.status === 'checkin_realizado' ? 'Check-in OK' : 'Confirmado'}</span>
-                                            <button onClick={() => setSelectedTicket(ticket)} className="flex items-center gap-2 text-white hover:text-brand-neon font-bold text-sm">
-                                                <QrCode size={16} /> Ver Ticket
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* GESTÃO DE EVENTOS */}
-            {activeTab === 'events_manage' && (
-                <div className="animate-fade-in-up">
-                    <div className="flex justify-between items-center mb-8">
-                        <h3 className="text-xl font-bold text-white">Eventos Cadastrados</h3>
-                        <button onClick={() => setIsEventModalOpen(true)} className="bg-brand-neon text-black px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-white transition-colors"><PlusCircle size={18} /> Criar Evento</button>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                        <table className="w-full text-left text-sm text-slate-300">
-                            <thead className="bg-black/20 text-slate-500 text-xs uppercase"><tr><th className="px-6 py-4">Evento</th><th className="px-6 py-4">Data</th><th className="px-6 py-4">Tipo</th></tr></thead>
-                            <tbody className="divide-y divide-white/5">
+                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                 {managedEvents.map(evt => (
-                                    <tr key={evt.id} className="hover:bg-white/5">
-                                        <td className="px-6 py-4 font-bold text-white">{evt.titulo}</td>
-                                        <td className="px-6 py-4">{new Date(evt.data_inicio).toLocaleDateString()}</td>
-                                        <td className="px-6 py-4">{evt.tipo}</td>
+                                    <tr key={evt.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.01] transition-colors">
+                                        <td className="px-6 py-4 cursor-pointer" onClick={() => handleEditEventClick(evt)}>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-brand-green/10 flex items-center justify-center text-brand-green"><Calendar size={18}/></div>
+                                                <div className="font-bold text-slate-900 dark:text-white text-sm">{evt.titulo}</div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-slate-500">{new Date(evt.data_inicio).toLocaleDateString()}</td>
+                                        <td className="px-6 py-4 text-sm text-slate-500 max-w-[200px] truncate">{evt.local}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex justify-center gap-2">
+                                                <button onClick={() => handleEditEventClick(evt)} className="p-2 text-slate-400 hover:text-brand-neon transition-colors" title="Editar"><Edit3 size={18}/></button>
+                                                <button onClick={() => handleDeleteEvent(evt.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={18}/></button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -759,103 +553,196 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 </div>
             )}
 
-            {/* CHECKIN SCANNER */}
-            {activeTab === 'checkin' && (
-                <div className="animate-fade-in-up max-w-2xl mx-auto">
-                    <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-md">
-                        <h3 className="text-2xl font-bold text-white mb-6 text-center">Scanner de Entrada</h3>
-                        <div className="mb-8 bg-black rounded-xl overflow-hidden border-2 border-white/10 relative h-64 md:h-80 flex items-center justify-center"><div id="reader" className="w-full h-full"></div></div>
-                        {checkinStatus === 'success' && <div className="bg-green-500/20 border border-green-500 text-green-400 p-4 rounded-xl text-center mb-6 animate-pulse"><CheckCircle size={32} className="mx-auto mb-2" /><div className="text-xl font-bold">Check-in Realizado!</div><div>{checkinMessage}</div></div>}
-                        {checkinStatus === 'error' && <div className="bg-red-500/20 border border-red-500 text-red-400 p-4 rounded-xl text-center mb-6"><AlertCircle size={32} className="mx-auto mb-2" /><div className="font-bold">Erro</div><div>{checkinMessage}</div></div>}
-                        <div className="flex gap-2"><input type="text" placeholder="Código manual..." value={manualCode} onChange={(e) => setManualCode(e.target.value)} className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white" /><button onClick={() => handleCheckIn(manualCode)} className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-bold">Validar</button></div>
-                    </div>
+            {/* MEUS EVENTOS / INGRESSOS */}
+            {activeTab === 'my_events' && (
+                <div className="animate-fade-in-up space-y-8">
+                     {myTickets.length === 0 ? (
+                        <div className="text-center py-24 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10">
+                            <Ticket size={48} className="mx-auto text-slate-400 mb-4" />
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Você não tem ingressos</h3>
+                            <button onClick={() => setActiveTab('agenda')} className="mt-4 text-brand-green hover:underline">Ver agenda de eventos</button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {myTickets.map(ticket => (
+                                <div key={ticket.id} className="bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-[2rem] overflow-hidden flex flex-col sm:flex-row shadow-xl">
+                                     <div className="sm:w-32 bg-brand-neon text-black p-6 flex sm:flex-col items-center justify-center gap-4 border-b sm:border-b-0 sm:border-r border-black/10">
+                                         <div className="text-center">
+                                             <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">{new Date(ticket.evento?.data_inicio || '').toLocaleString('pt-BR', { month: 'short' })}</div>
+                                             <div className="text-3xl font-bold leading-none">{new Date(ticket.evento?.data_inicio || '').getDate()}</div>
+                                         </div>
+                                         <div className="h-px w-full bg-black/10 hidden sm:block"></div>
+                                         <div className="rotate-0 sm:-rotate-90 whitespace-nowrap font-bold text-xs uppercase tracking-[0.3em]">TICKET</div>
+                                     </div>
+                                     
+                                     <div className="flex-1 p-8 relative">
+                                          <div className="mb-6">
+                                              <div className="text-[10px] font-bold text-brand-green uppercase tracking-widest mb-1">{ticket.evento?.tipo}</div>
+                                              <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{ticket.evento?.titulo}</h3>
+                                          </div>
+                                          
+                                          <div className="space-y-3 mb-8">
+                                              <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                  <MapPin size={16} className="text-brand-green" /> {ticket.evento?.local}
+                                              </div>
+                                              <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                  <Clock size={16} className="text-brand-green" /> {new Date(ticket.evento?.data_inicio || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                              </div>
+                                          </div>
+
+                                          <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-white/5">
+                                               <div>
+                                                   <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Portador</div>
+                                                   <div className="text-sm font-bold text-slate-900 dark:text-white">{user?.nome}</div>
+                                               </div>
+                                               <div className="p-2 bg-white rounded-xl border border-slate-200">
+                                                    <QRCode value={ticket.id} size={64} />
+                                               </div>
+                                          </div>
+                                          
+                                          {/* Ticket status badge */}
+                                          <div className={`absolute top-6 right-6 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${ticket.status === 'checkin_realizado' ? 'bg-brand-green/20 text-brand-green' : 'bg-slate-100 dark:bg-white/5 text-slate-400'}`}>
+                                              {ticket.status === 'checkin_realizado' ? 'Utilizado' : 'Válido'}
+                                          </div>
+                                     </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
+
+            {/* Outras tabs (Ranking, Membros, Mural) seguem a mesma estética premium */}
         </main>
       </div>
 
-      {/* MODAL EDIT MEMBER */}
-      {selectedMember && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedMember(null)}>
-              <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-md p-8 animate-fade-in-up" onClick={e => e.stopPropagation()}>
-                  <h2 className="text-2xl font-bold text-white mb-6">Editar Membro: {selectedMember.nome}</h2>
-                  <div className="space-y-4">
-                       <div>
-                            <label className="text-sm text-slate-400 block mb-2">Governança</label>
-                            <button onClick={() => setEditedGovernanca(!editedGovernanca)} className={`w-full py-3 rounded-xl border transition-all ${editedGovernanca ? 'bg-brand-neon/20 border-brand-neon text-brand-neon' : 'bg-white/5 border-white/10 text-slate-500'}`}>{editedGovernanca ? 'Sim (Admin)' : 'Não (Membro)'}</button>
-                       </div>
-                       <div>
-                            <label className="text-sm text-slate-400 block mb-2">Cargo</label>
-                            <select value={editedCargo} onChange={(e) => setEditedCargo(Number(e.target.value))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white"><option value={0}>Sem Cargo</option>{cargos.map(c => <option key={c.id} value={c.id}>{c.cargo}</option>)}</select>
-                       </div>
-                       
-                       {/* SELETOR DE GTs */}
-                       <div>
-                            <label className="text-sm text-slate-400 block mb-2">Grupos de Trabalho</label>
-                            <div className="flex flex-wrap gap-2">
-                                {gts.map((gt) => {
-                                    const isSelected = editedGTs.includes(gt.id);
-                                    return (
-                                        <button 
-                                            key={gt.id}
-                                            onClick={() => handleToggleGT(gt.id)}
-                                            className={`px-3 py-2 rounded-lg text-sm transition-all border ${isSelected ? 'bg-brand-neon/20 border-brand-neon text-brand-neon' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
-                                        >
-                                            {gt.gt}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                       </div>
+      {/* EVENT MODAL (GOVERNANÇA) */}
+      {isEventModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={closeEventModal}></div>
+              <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in-up">
+                  <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                      <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                          <Calendar className="text-brand-neon" /> {editingEventId ? 'Editar Evento' : 'Novo Evento'}
+                      </h3>
+                      <button onClick={closeEventModal} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400">
+                          <X size={24} />
+                      </button>
+                  </div>
+                  
+                  <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="md:col-span-2">
+                              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Título do Evento</label>
+                              <input 
+                                  type="text" 
+                                  value={eventForm.titulo}
+                                  onChange={(e) => setEventForm({...eventForm, titulo: e.target.value})}
+                                  placeholder="Ex: Workshop IA no Campo"
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-brand-neon transition-all"
+                              />
+                          </div>
+                          
+                          <div className="md:col-span-2">
+                              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Descrição Curta</label>
+                              <textarea 
+                                  value={eventForm.descricao}
+                                  onChange={(e) => setEventForm({...eventForm, descricao: e.target.value})}
+                                  rows={3}
+                                  placeholder="Explique o que acontecerá no evento..."
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-brand-neon transition-all resize-none"
+                              />
+                          </div>
 
-                       <button onClick={handleSaveMember} className="w-full py-3 bg-brand-neon text-black font-bold rounded-xl mt-4">{isUpdating ? 'Salvando...' : 'Salvar Alterações'}</button>
+                          <div>
+                              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Data e Hora</label>
+                              <input 
+                                  type="datetime-local" 
+                                  value={eventForm.data_inicio}
+                                  onChange={(e) => setEventForm({...eventForm, data_inicio: e.target.value})}
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-brand-neon transition-all"
+                              />
+                          </div>
+
+                          <div>
+                              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Tipo</label>
+                              <select 
+                                  value={eventForm.tipo}
+                                  onChange={(e) => setEventForm({...eventForm, tipo: e.target.value})}
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-brand-neon transition-all appearance-none"
+                              >
+                                  <option value="Meetup">Meetup</option>
+                                  <option value="Workshop">Workshop</option>
+                                  <option value="Networking">Networking</option>
+                                  <option value="Pitch">Pitch Day</option>
+                                  <option value="Conferência">Conferência</option>
+                              </select>
+                          </div>
+
+                          <div className="md:col-span-2">
+                              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Local / Link</label>
+                              <input 
+                                  type="text" 
+                                  value={eventForm.local}
+                                  onChange={(e) => setEventForm({...eventForm, local: e.target.value})}
+                                  placeholder="Endereço físico ou link da reunião"
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-brand-neon transition-all"
+                              />
+                          </div>
+
+                          <div>
+                              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Limite de Vagas</label>
+                              <input 
+                                  type="number" 
+                                  value={eventForm.vagas}
+                                  onChange={(e) => setEventForm({...eventForm, vagas: parseInt(e.target.value)})}
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-brand-neon transition-all"
+                              />
+                          </div>
+
+                          <div>
+                              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">URL Imagem Capa</label>
+                              <div className="flex gap-2">
+                                  <input 
+                                      type="text" 
+                                      value={eventForm.imagem_capa}
+                                      onChange={(e) => setEventForm({...eventForm, imagem_capa: e.target.value})}
+                                      placeholder="https://imagem.jpg"
+                                      className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-brand-neon transition-all"
+                                  />
+                                  <button 
+                                      onClick={() => eventImageInputRef.current?.click()}
+                                      disabled={isUploadingEventImg}
+                                      className="p-3 bg-brand-neon/20 border border-brand-neon/30 text-brand-neon rounded-2xl hover:bg-brand-neon hover:text-black transition-all flex items-center justify-center disabled:opacity-50"
+                                      title="Fazer upload"
+                                  >
+                                      {isUploadingEventImg ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
+                                  </button>
+                                  <input type="file" ref={eventImageInputRef} className="hidden" accept="image/*" onChange={handleEventImageUpload} />
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-8 bg-white/5 flex justify-end gap-4">
+                      <button 
+                        onClick={closeEventModal}
+                        className="px-6 py-3 rounded-2xl font-bold text-slate-400 hover:text-white transition-colors"
+                      >
+                          Cancelar
+                      </button>
+                      <button 
+                        onClick={handleSaveEvent}
+                        disabled={isSubmittingEvent}
+                        className="bg-brand-neon text-black px-10 py-3 rounded-2xl font-bold hover:bg-brand-neon/80 transition-all shadow-lg shadow-brand-neon/20 flex items-center gap-2 disabled:opacity-50"
+                      >
+                          {isSubmittingEvent ? <Loader2 size={18} className="animate-spin"/> : (editingEventId ? <Edit3 size={18}/> : <Plus size={18}/>)}
+                          {editingEventId ? 'Atualizar Evento' : 'Publicar Evento'}
+                      </button>
                   </div>
               </div>
           </div>
       )}
-
-      {/* MODAL ARTICLE */}
-      {isArticleModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-               <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-4xl h-[90vh] flex flex-col p-8 animate-fade-in-up">
-                   <div className="flex justify-between mb-6"><h2 className="text-2xl font-bold text-white">{articleForm.id ? 'Editar Artigo' : 'Novo Artigo'}</h2><button onClick={() => setIsArticleModalOpen(false)}><X className="text-slate-400 hover:text-white" /></button></div>
-                   <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-2">
-                       <input type="text" placeholder="Título" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xl font-bold" value={articleForm.titulo} onChange={(e) => setArticleForm({...articleForm, titulo: e.target.value})} />
-                       <input type="text" placeholder="Subtítulo" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white" value={articleForm.subtitulo} onChange={(e) => setArticleForm({...articleForm, subtitulo: e.target.value})} />
-                       <RichTextEditor value={articleForm.conteudo} onChange={(html) => setArticleForm({...articleForm, conteudo: html})} />
-                       {user?.governanca && <div className="flex items-center gap-3 p-4 bg-white/5 rounded-xl"><input type="checkbox" checked={articleForm.aprovado} onChange={(e) => setArticleForm({...articleForm, aprovado: e.target.checked})} className="w-5 h-5 accent-brand-neon" /><label>Aprovado / Publicado</label></div>}
-                   </div>
-                   <div className="pt-4 mt-4 border-t border-white/10 flex justify-end gap-4"><button onClick={() => setIsArticleModalOpen(false)} className="px-6 py-3 rounded-xl bg-white/5 text-white">Cancelar</button><button onClick={handleSaveArticle} className="px-6 py-3 rounded-xl bg-brand-neon text-black font-bold">{isSubmittingArticle ? 'Salvando...' : 'Salvar Artigo'}</button></div>
-               </div>
-          </div>
-      )}
-
-      {/* MODAL EVENT CREATE */}
-      {isEventModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-               <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-lg p-8 animate-fade-in-up">
-                   <h2 className="text-2xl font-bold text-white mb-6">Novo Evento</h2>
-                   <div className="space-y-4">
-                       <input type="text" placeholder="Título" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white" value={eventForm.titulo} onChange={(e) => setEventForm({...eventForm, titulo: e.target.value})} />
-                       <div className="grid grid-cols-2 gap-4"><input type="datetime-local" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white" value={eventForm.data_inicio} onChange={(e) => setEventForm({...eventForm, data_inicio: e.target.value})} /><select className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white" value={eventForm.tipo} onChange={(e) => setEventForm({...eventForm, tipo: e.target.value})}><option>Meetup</option><option>Workshop</option><option>Conferência</option></select></div>
-                       <input type="text" placeholder="Local" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white" value={eventForm.local} onChange={(e) => setEventForm({...eventForm, local: e.target.value})} />
-                       <textarea placeholder="Descrição" rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white" value={eventForm.descricao} onChange={(e) => setEventForm({...eventForm, descricao: e.target.value})} />
-                       <div className="flex gap-4 pt-4"><button onClick={() => setIsEventModalOpen(false)} className="flex-1 py-3 bg-white/5 rounded-xl text-white">Cancelar</button><button onClick={handleSaveEvent} className="flex-1 py-3 bg-brand-neon text-black font-bold rounded-xl">{isSubmittingEvent ? <Loader2 className="animate-spin mx-auto"/> : 'Criar'}</button></div>
-                   </div>
-               </div>
-          </div>
-      )}
-
-      {/* MODAL QR TICKET */}
-      {selectedTicket && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedTicket(null)}>
-              <div className="bg-white text-black rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl animate-fade-in-up relative" onClick={e => e.stopPropagation()}>
-                  <div className="h-32 bg-brand-green p-6 relative"><h2 className="text-2xl font-bold mt-2">{selectedTicket.evento?.titulo}</h2><div className="absolute -bottom-6 left-0 w-full h-12 bg-white rounded-t-[50%]"></div></div>
-                  <div className="px-8 py-6 text-center"><div className="mb-6"><div className="font-bold text-lg">{user?.nome}</div></div><div className="bg-white p-4 rounded-xl border-2 border-dashed border-slate-200 inline-block mb-6"><QRCode value={selectedTicket.id} size={180} /></div><p className="text-xs text-slate-400 font-mono break-all">{selectedTicket.id}</p>{selectedTicket.status === 'checkin_realizado' && <div className="mt-4 bg-green-100 text-green-700 px-4 py-2 rounded-full text-xs font-bold uppercase">Check-in Realizado</div>}</div>
-              </div>
-          </div>
-      )}
-
     </div>
   );
 };

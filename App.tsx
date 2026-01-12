@@ -12,7 +12,7 @@ import { BlogPage } from './pages/BlogPage';
 import { ArticlePage } from './pages/ArticlePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { CompanyPublicPage } from './components/company/CompanyPublicPage';
-import { EventsPage } from './pages/EventsPage'; // NEW IMPORT
+import { EventsPage } from './pages/EventsPage';
 import { User, Empresa } from './types';
 import { supabase } from './services/supabase';
 
@@ -24,7 +24,7 @@ enum Page {
   ARTICLE,
   PROFILE,
   COMPANY_PUBLIC,
-  EVENTS_PUBLIC // NEW ENUM
+  EVENTS_PUBLIC
 }
 
 const App: React.FC = () => {
@@ -33,27 +33,23 @@ const App: React.FC = () => {
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const [previewEmpresa, setPreviewEmpresa] = useState<Empresa | null>(null);
 
-  // Check for existing session on mount
   useEffect(() => {
       const checkSession = async () => {
-          // Check URL params for shared company links (simulated routing)
           const params = new URLSearchParams(window.location.search);
           const pageParam = params.get('page');
           const idParam = params.get('id');
 
           if (pageParam === 'empresa' && idParam) {
-              // Fetch company data to show publicly
               const { data } = await supabase.from('empresas').select('*').eq('id', idParam).single();
               if (data) {
                   setPreviewEmpresa(data);
                   setCurrentPage(Page.COMPANY_PUBLIC);
-                  return; // Stop session check to show public page immediately
+                  return;
               }
           }
 
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
-             // If session exists, try to get profile data
               const { data: profile } = await supabase
               .from('users')
               .select('*')
@@ -61,14 +57,26 @@ const App: React.FC = () => {
               .single();
               
               if (profile) {
-                  setUser({ ...profile, email: session.user.email || '', uuid: session.user.id });
+                  let userData: User = { 
+                    ...profile, 
+                    email: session.user.email || '', 
+                    uuid: session.user.id 
+                  };
+
+                  // ADMIN OVERRIDE: Liberação total para o usuário solicitado
+                  if (session.user.email === 'peboorba@gmail.com') {
+                      userData.governanca = true;
+                      userData.gts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+                      userData.cargo = 1; 
+                  }
+
+                  setUser(userData);
                   setCurrentPage(Page.DASHBOARD);
               }
           }
       };
       checkSession();
   }, []);
-
 
   const handleLoginSuccess = (userData: User) => {
     setUser(userData);
@@ -97,19 +105,16 @@ const App: React.FC = () => {
       window.scrollTo(0, 0);
   };
 
-  // Centralized Navigation Logic
   const handleNavigate = (target: string) => {
     if (target === 'artigos') {
       setCurrentPage(Page.BLOG);
       window.scrollTo(0, 0);
-    } else if (target === 'eventos') { // NEW TARGET
+    } else if (target === 'eventos') {
       setCurrentPage(Page.EVENTS_PUBLIC);
       window.scrollTo(0, 0);
     } else {
-      // If we are on the blog page or login page and want to go to a home section
       if (currentPage !== Page.LANDING) {
         setCurrentPage(Page.LANDING);
-        // Small delay to allow the Landing page to render before scrolling
         setTimeout(() => {
           const element = document.getElementById(target);
           if (element) {
@@ -119,7 +124,6 @@ const App: React.FC = () => {
           }
         }, 100);
       } else {
-        // If already on landing, just scroll
         const element = document.getElementById(target);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth' });
@@ -160,7 +164,6 @@ const App: React.FC = () => {
         return (
             <CompanyPublicPage 
                 empresa={previewEmpresa} 
-                // Only show back button if we have a user logged in (preview mode), otherwise it's a public link view
                 onBack={user ? () => setCurrentPage(Page.PROFILE) : undefined} 
                 onLoginClick={() => setCurrentPage(Page.LOGIN)}
             />
@@ -207,9 +210,7 @@ const App: React.FC = () => {
                 onArticleClick={handleOpenArticle}
             />
             <Events /> 
-            {/* Note: The <Events /> component on landing page might need a "View All" button wired to handleNavigate('eventos') */}
             
-            {/* About Section - Glass Dark */}
             <section id="sobre" className="py-32 bg-brand-black relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-b from-black via-brand-green/5 to-black"></div>
               

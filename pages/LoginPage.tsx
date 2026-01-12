@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Logo } from '../components/ui/Logo';
 import { supabase } from '../services/supabase';
 import { ArrowLeft, Loader2, UserPlus, LogIn, Shield, Users } from 'lucide-react';
-import { GT } from '../types';
+import { GT, User } from '../types';
 
 interface LoginPageProps {
   onLoginSuccess: (user: any) => void;
@@ -12,22 +12,18 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   
-  // Form States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   
-  // New User Preferences (Default Cargo = Membro ID 3)
   const [isGovernanca, setIsGovernanca] = useState(false);
   const [selectedGts, setSelectedGts] = useState<number[]>([]);
   
-  // Data & UI States
   const [availableGts, setAvailableGts] = useState<GT[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch GTs for the signup selection
     const fetchGts = async () => {
       const { data } = await supabase.from('gts').select('*').order('gt');
       if (data) setAvailableGts(data);
@@ -50,11 +46,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
 
     try {
       if (isSignUp) {
-        // --- SIGN UP LOGIC ---
         if (!name) throw new Error("Por favor, informe seu nome.");
-        // Removida a validação obrigatória de GTs para permitir usuários sem GT
 
-        // 1. Create Auth User
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
@@ -63,31 +56,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
         if (authError) throw authError;
 
         if (authData.user) {
-           // 2. Create Public Profile
-           // Cargo ID 3 = Membro (Hardcoded as per requirement)
            const { error: profileError } = await supabase.from('users').insert([{
               uuid: authData.user.id,
               email: email,
               nome: name,
               cargo: 3, 
-              gts: selectedGts, // Pode ser array vazio []
+              gts: selectedGts, 
               governanca: isGovernanca,
               artigos: 0,
               last_login: new Date().toISOString()
            }]);
 
            if (profileError) {
-               // Rollback logic implies usually deleting the auth user, but for simple UX we just show error
                console.error("Erro ao criar perfil", profileError);
                throw new Error("Conta criada, mas houve um erro ao salvar o perfil. Entre em contato.");
            }
 
-           // Auto-login flow handling
            handleLoginSuccessLogic(authData.user.id, email);
         }
 
       } else {
-        // --- LOGIN LOGIC ---
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -101,7 +89,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar operação.');
       
-      // Demo Fallback
       if (!isSignUp && email === 'demo@inovap.com') {
           onLoginSuccess({
               id: 999,
@@ -126,19 +113,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
         .eq('uuid', uuid)
         .single();
       
-      const combinedUser = {
+      let combinedUser: User = {
           ...profile,
-          email: userEmail,
+          email: userEmail || '',
           uuid: uuid,
           nome: profile?.nome || userEmail?.split('@')[0] || 'Usuário',
+          artigos: profile?.artigos || 0
       };
+
+      // ADMIN OVERRIDE: Liberação total para o usuário solicitado
+      if (userEmail === 'peboorba@gmail.com') {
+          combinedUser.governanca = true;
+          combinedUser.gts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+          combinedUser.cargo = 1; 
+      }
 
       onLoginSuccess(combinedUser);
   };
 
   return (
     <div className="min-h-screen bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background Animation */}
       <div className="absolute top-[-20%] left-[-20%] w-[1000px] h-[1000px] bg-brand-green/20 rounded-full blur-[150px] animate-pulse-slow"></div>
       <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-blue-900/20 rounded-full blur-[150px]"></div>
 
@@ -187,7 +181,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
               </div>
             </div>
 
-            {/* Extra Fields for Sign Up (Role: Membro ID 3) */}
             {isSignUp && (
                 <div className="space-y-5 pt-2 animate-fade-in-up">
                     <div className="bg-white/5 p-4 rounded-xl border border-white/10">

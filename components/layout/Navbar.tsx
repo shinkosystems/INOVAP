@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Logo } from '../ui/Logo';
-import { Menu, X, LogIn, Download } from 'lucide-react';
+import { Menu, X, LogIn, Download, Sun, Moon } from 'lucide-react';
 
 interface NavbarProps {
   onLoginClick: () => void;
@@ -11,8 +11,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
+    // Initial theme check
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
+    const initialTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    setTheme(initialTheme);
+    applyTheme(initialTheme);
+
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
@@ -30,6 +37,23 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
+
+  const applyTheme = (t: 'dark' | 'light') => {
+    if (t === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
+    }
+  };
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    applyTheme(newTheme);
+  };
 
   const handleInstallClick = () => {
     if (!installPrompt) return;
@@ -65,32 +89,51 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
     <nav className={`fixed w-full z-50 transition-all duration-300 ${scrolled ? 'py-4' : 'py-6'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className={`
-            mx-auto transition-all duration-300 rounded-3xl border border-brand-border
+            mx-auto transition-all duration-300 rounded-3xl border 
+            ${theme === 'dark' ? 'border-brand-border' : 'border-brand-lightBorder'}
             ${scrolled 
-                ? 'bg-black/60 backdrop-blur-xl shadow-lg shadow-black/20' 
-                : 'bg-black/30 backdrop-blur-md'}
+                ? (theme === 'dark' ? 'bg-black/60 backdrop-blur-xl shadow-lg shadow-black/20' : 'bg-white/70 backdrop-blur-xl shadow-lg shadow-slate-200/50') 
+                : (theme === 'dark' ? 'bg-black/30 backdrop-blur-md' : 'bg-white/40 backdrop-blur-md')}
         `}>
             <div className="flex justify-between h-16 items-center px-6">
             <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={(e) => handleNavClick(e, 'inicio')}>
-                <Logo dark />
+                <Logo dark={theme === 'dark'} />
             </div>
             
-            <div className="hidden md:flex items-center space-x-8">
+            <div className="hidden md:flex items-center space-x-6">
                 {navItems.map((item) => (
                     <a 
                         key={item.label} 
                         href={`#${item.target}`}
                         onClick={(e) => handleNavClick(e, item.target)}
-                        className="text-sm font-medium text-slate-300 hover:text-brand-neon hover:shadow-[0_0_15px_rgba(0,255,157,0.5)] transition-all duration-300"
+                        className={`text-sm font-medium transition-all duration-300 ${
+                          theme === 'dark' 
+                            ? 'text-slate-300 hover:text-brand-neon hover:shadow-[0_0_15px_rgba(0,255,157,0.5)]' 
+                            : 'text-slate-600 hover:text-brand-green'
+                        }`}
                     >
                         {item.label}
                     </a>
                 ))}
+
+                <button 
+                  onClick={toggleTheme}
+                  className={`p-2 rounded-full transition-all ${
+                    theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                  aria-label="Alternar tema"
+                >
+                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
                 
                 {installPrompt && (
                   <button 
                     onClick={handleInstallClick}
-                    className="bg-white/10 text-white px-4 py-2 rounded-full text-xs font-medium hover:bg-white hover:text-black transition-all flex items-center gap-2 border border-white/10"
+                    className={`px-4 py-2 rounded-full text-xs font-medium transition-all flex items-center gap-2 border ${
+                      theme === 'dark' 
+                        ? 'bg-white/10 text-white border-white/10 hover:bg-white hover:text-black' 
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                    }`}
                   >
                     <Download size={14} />
                     Instalar App
@@ -98,25 +141,35 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
                 )}
 
                 <button 
-                onClick={onLoginClick}
-                className="bg-brand-green/20 border border-brand-green/50 text-brand-neon px-5 py-2 rounded-full text-sm font-medium hover:bg-brand-neon hover:text-black hover:border-brand-neon transition-all flex items-center gap-2 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                  onClick={onLoginClick}
+                  className="bg-brand-green/20 border border-brand-green/50 text-brand-neon dark:text-brand-neon px-5 py-2 rounded-full text-sm font-medium hover:bg-brand-neon hover:text-black hover:border-brand-neon transition-all flex items-center gap-2 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
                 >
-                <LogIn size={16} />
-                Área do Membro
+                  <LogIn size={16} />
+                  Área do Membro
                 </button>
             </div>
 
             <div className="md:hidden flex items-center gap-4">
+                 <button 
+                    onClick={toggleTheme}
+                    className={`p-2 rounded-full transition-all ${
+                      theme === 'dark' ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                  </button>
                  {installPrompt && (
                   <button 
                     onClick={handleInstallClick}
-                    className="bg-white/10 text-white p-2 rounded-full hover:bg-white hover:text-black transition-all border border-white/10"
+                    className={`p-2 rounded-full transition-all border ${
+                      theme === 'dark' ? 'bg-white/10 text-white border-white/10' : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
                     title="Instalar App"
                   >
                     <Download size={18} />
                   </button>
                 )}
-                <button onClick={() => setIsOpen(!isOpen)} className="text-white hover:text-brand-neon transition-colors">
+                <button onClick={() => setIsOpen(!isOpen)} className={`${theme === 'dark' ? 'text-white' : 'text-slate-900'} hover:text-brand-neon transition-colors`}>
                 {isOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>
             </div>
@@ -127,26 +180,30 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
       {/* Mobile Menu Glass */}
       {isOpen && (
         <div className="md:hidden absolute top-24 left-4 right-4 z-50">
-            <div className="bg-black/80 backdrop-blur-xl border border-brand-border rounded-3xl p-4 space-y-2 shadow-2xl">
+            <div className={`backdrop-blur-xl border rounded-3xl p-4 space-y-2 shadow-2xl ${
+              theme === 'dark' ? 'bg-black/80 border-brand-border' : 'bg-white/90 border-slate-200'
+            }`}>
                 {navItems.map((item) => (
                     <a 
                         key={item.label}
                         href={`#${item.target}`} 
                         onClick={(e) => handleNavClick(e, item.target)} 
-                        className="block px-4 py-3 text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-colors"
+                        className={`block px-4 py-3 rounded-xl transition-colors ${
+                          theme === 'dark' ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
                     >
                         {item.label}
                     </a>
                 ))}
                 <button 
-                onClick={() => {
-                    setIsOpen(false);
-                    onLoginClick();
-                }}
-                className="w-full mt-4 bg-brand-neon text-black px-5 py-3 rounded-xl font-bold hover:bg-white transition-all flex items-center justify-center gap-2"
+                  onClick={() => {
+                      setIsOpen(false);
+                      onLoginClick();
+                  }}
+                  className="w-full mt-4 bg-brand-neon text-black px-5 py-3 rounded-xl font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
                 >
-                <LogIn size={18} />
-                Área do Membro
+                  <LogIn size={18} />
+                  Área do Membro
                 </button>
             </div>
         </div>
