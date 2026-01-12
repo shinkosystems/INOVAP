@@ -1,5 +1,7 @@
 {
-  "name": "INOVAP - Ecossistema de Inovação",
-  "description": "Sistema de gestão de times e landing page para o Ecossistema de Inovação do Alto Paraopeba.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "name": "",
+  "description": ""
 }
