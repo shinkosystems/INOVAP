@@ -4,15 +4,33 @@ import { ArrowRight, Zap, Users, Globe } from 'lucide-react';
 export const Hero: React.FC = () => {
   return (
     <div id="inicio" className="relative min-h-screen flex items-center pt-32 pb-20 overflow-hidden bg-white dark:bg-brand-black transition-colors duration-500">
-      {/* iOS 26 Abstract Background */}
+      {/* iOS Abstract Background - Green Tones Only */}
       <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-brand-green/20 dark:bg-brand-green/20 rounded-full blur-[120px] animate-pulse-slow"></div>
-      <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-500/10 dark:bg-blue-900/20 rounded-full blur-[100px]"></div>
+      <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-brand-neon/5 dark:bg-brand-green/10 rounded-full blur-[100px]"></div>
       <div className="absolute top-[40%] left-[20%] w-[300px] h-[300px] bg-brand-neon/10 dark:bg-brand-neon/10 rounded-full blur-[80px] animate-float"></div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="text-center max-w-5xl mx-auto">
+        <div className="text-center max-w-5xl mx-auto flex flex-col items-center">
           
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 backdrop-blur-md shadow-lg mb-8 animate-fade-in-up">
+          {/* Logo Centralizado Solicidado */}
+          <div className="mb-12 animate-fade-in-up flex flex-col items-center">
+            <img 
+              src="https://jmhquynjyekclwxjgupk.supabase.co/storage/v1/object/public/logotipos/logotipos/2.png" 
+              alt="INOVAP Logo" 
+              className="h-24 md:h-32 w-auto mb-4 drop-shadow-2xl"
+            />
+            <div className="flex flex-col items-center">
+                <span className="text-4xl md:text-6xl font-black tracking-tighter text-slate-900 dark:text-white leading-none">
+                    INOVAP
+                </span>
+                <div className="h-1.5 w-full bg-brand-neon mt-2 rounded-full"></div>
+                <span className="mt-2 text-[10px] md:text-xs font-bold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                    Ecossistema de Inovação do Alto Paraopeba
+                </span>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 backdrop-blur-md shadow-lg mb-8 animate-fade-in-up" style={{animationDelay: '0.1s'}}>
             <span className="relative flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-neon opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-brand-neon"></span>
@@ -20,18 +38,18 @@ export const Hero: React.FC = () => {
             <span className="text-sm font-medium text-slate-600 dark:text-slate-200 tracking-wide">O futuro do Alto Paraopeba</span>
           </div>
           
-          <h1 className="text-5xl md:text-8xl font-bold text-slate-900 dark:text-white tracking-tight mb-8 leading-tight animate-fade-in-up" style={{animationDelay: '0.1s'}}>
-            Conexão <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-neon via-brand-green to-blue-500 drop-shadow-[0_0_30px_rgba(16,185,129,0.5)]">
-              Transparente
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white tracking-tight mb-8 leading-tight animate-fade-in-up" style={{animationDelay: '0.2s'}}>
+            O que é o INOVAP <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-neon via-brand-green to-emerald-400 drop-shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+              e por que importa para você?
             </span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-slate-500 dark:text-slate-400 mb-12 max-w-3xl mx-auto leading-relaxed animate-fade-in-up" style={{animationDelay: '0.2s'}}>
-            Uma plataforma unificada. Um ecossistema vivo. O INOVAP conecta mentes brilhantes através de uma interface fluida e inteligente.
+          <p className="text-xl md:text-2xl text-slate-500 dark:text-slate-400 mb-12 max-w-4xl mx-auto leading-relaxed animate-fade-in-up" style={{animationDelay: '0.3s'}}>
+            INOVAP é o ecossistema que conecta pessoas, empresas, escolas e governo para transformar ideias em desenvolvimento para a região. Criamos oportunidades, conexões impulsionamos negócios e fortalecemos a cultura de inovação no território.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center animate-fade-in-up" style={{animationDelay: '0.3s'}}>
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center animate-fade-in-up" style={{animationDelay: '0.4s'}}>
             <a href="#gts" className="group px-8 py-4 bg-brand-green text-black rounded-3xl font-bold transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:scale-105 flex items-center gap-2">
               Explorar Grupos
               <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
@@ -42,7 +60,7 @@ export const Hero: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up" style={{animationDelay: '0.5s'}}>
+        <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up" style={{animationDelay: '0.6s'}}>
           {[
             { icon: Users, title: "Conexão", desc: "Networking estratégico em tempo real." },
             { icon: Zap, title: "Inovação", desc: "Tecnologias disruptivas e aceleração." },

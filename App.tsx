@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+// Added missing ArrowRight icon from lucide-react
+import { ArrowRight } from 'lucide-react';
 import { Navbar } from './components/layout/Navbar';
 import { Hero } from './components/landing/Hero';
 import { Stats } from './components/landing/Stats';
@@ -13,6 +15,8 @@ import { ArticlePage } from './pages/ArticlePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { CompanyPublicPage } from './components/company/CompanyPublicPage';
 import { EventsPage } from './pages/EventsPage';
+import { AboutPage } from './pages/AboutPage';
+import { GroupsPage } from './pages/GroupsPage';
 import { User, Empresa } from './types';
 import { supabase } from './services/supabase';
 
@@ -24,7 +28,9 @@ enum Page {
   ARTICLE,
   PROFILE,
   COMPANY_PUBLIC,
-  EVENTS_PUBLIC
+  EVENTS_PUBLIC,
+  ABOUT,
+  GROUPS
 }
 
 const App: React.FC = () => {
@@ -63,7 +69,6 @@ const App: React.FC = () => {
                     uuid: session.user.id 
                   };
 
-                  // ADMIN OVERRIDE: Liberação total para o usuário solicitado
                   if (session.user.email === 'peboorba@gmail.com') {
                       userData.governanca = true;
                       userData.gts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -111,6 +116,12 @@ const App: React.FC = () => {
       window.scrollTo(0, 0);
     } else if (target === 'eventos') {
       setCurrentPage(Page.EVENTS_PUBLIC);
+      window.scrollTo(0, 0);
+    } else if (target === 'sobre') {
+      setCurrentPage(Page.ABOUT);
+      window.scrollTo(0, 0);
+    } else if (target === 'gts') {
+      setCurrentPage(Page.GROUPS);
       window.scrollTo(0, 0);
     } else {
       if (currentPage !== Page.LANDING) {
@@ -187,6 +198,23 @@ const App: React.FC = () => {
             />
         );
 
+      case Page.ABOUT:
+        return (
+            <AboutPage 
+                onLoginClick={() => setCurrentPage(Page.LOGIN)} 
+                onNavigate={handleNavigate}
+            />
+        );
+
+      case Page.GROUPS:
+        return (
+            <GroupsPage 
+                onLoginClick={() => setCurrentPage(Page.LOGIN)} 
+                onNavigate={handleNavigate}
+                onViewCompany={handleViewCompany}
+            />
+        );
+
       case Page.ARTICLE:
         return (
             <ArticlePage 
@@ -212,7 +240,7 @@ const App: React.FC = () => {
             <Events /> 
             
             <section id="sobre" className="py-32 bg-brand-black relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-black via-brand-green/5 to-black"></div>
+              <div className="absolute inset-0 bg-gradient-to-b from-black via-brand-green/10 to-black"></div>
               
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div className="flex flex-col md:flex-row items-center gap-16">
@@ -232,8 +260,8 @@ const App: React.FC = () => {
                       <ul className="space-y-6">
                         {[
                           "Acesso a mentores especializados",
-                          "Visibilidade para sua startup ou projeto",
-                          "Conexão direta com fundos de investimento",
+                          "Visibilidade para sua startup or projeto",
+                          "Conexão direta com investidores estratégicos",
                           "Participação em eventos exclusivos"
                         ].map((item, i) => (
                            <li key={i} className="flex items-center gap-4 text-slate-300 font-medium p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors">
@@ -242,6 +270,9 @@ const App: React.FC = () => {
                            </li>
                         ))}
                       </ul>
+                      <button onClick={() => handleNavigate('sobre')} className="mt-12 text-brand-neon font-bold flex items-center gap-2 hover:gap-4 transition-all">
+                        Conheça nossa história completa <ArrowRight size={20} />
+                      </button>
                    </div>
                 </div>
               </div>

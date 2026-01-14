@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR" class="scroll-smooth">
   <head>
@@ -9,26 +10,38 @@
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script>
-      // Initialize theme before content renders to prevent flicker
-      if (localStorage.getItem('theme') === 'light' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: light)').matches)) {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.classList.add('light');
-      } else {
-        document.documentElement.classList.add('dark');
+      function applyTheme() {
+        if (localStorage.getItem('theme') === 'light' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.add('light');
+        } else {
+          document.documentElement.classList.remove('light');
+          document.documentElement.classList.add('dark');
+        }
       }
+      applyTheme();
     </script>
     <style>
       body {
         font-family: 'Montserrat', sans-serif;
         transition: background-color 0.3s ease, color 0.3s ease;
       }
-      .light body {
-        background-color: #f8fafc;
-        color: #0f172a;
+      
+      .light {
+        --bg-primary: #ffffff;
+        --text-primary: #0f172a;
+        --bg-secondary: #f8fafc;
       }
-      .dark body {
-        background-color: #000000;
-        color: #ffffff;
+      
+      .dark {
+        --bg-primary: #000000;
+        --text-primary: #ffffff;
+        --bg-secondary: #050505;
+      }
+
+      body {
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
       }
       
       /* Custom Scrollbar */
@@ -43,7 +56,6 @@
         background: #10b981; 
       }
 
-      /* Rich Text Editor Overrides */
       .prose h1 { font-size: 2.25em !important; font-weight: 800 !important; margin-bottom: 0.8em; line-height: 1.2; }
       .prose h2 { font-size: 1.8em !important; font-weight: 700 !important; margin-top: 1.5em; margin-bottom: 0.6em; line-height: 1.3; }
       .prose p { margin-bottom: 1em; line-height: 1.75; font-size: 1rem; }
@@ -51,7 +63,6 @@
       .light .prose h1, .light .prose h2, .light .prose h3, .light .prose h4 { color: #0f172a !important; }
       .dark .prose p, .dark .prose ul, .dark .prose ol { color: #cbd5e1; }
       .light .prose p, .light .prose ul, .light .prose ol { color: #334155; }
-      .prose img { border-radius: 0.75rem; margin-top: 1.5em; margin-bottom: 1.5em; max-width: 100%; display: block; }
     </style>
     <script>
       tailwind.config = {
@@ -72,9 +83,6 @@
                 neon: '#00ff9d',
                 darkGreen: '#064e3b',
               }
-            },
-            backdropBlur: {
-              xs: '2px',
             },
             animation: {
               'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -112,7 +120,7 @@
 }
 </script>
 </head>
-  <body>
+  <body class="bg-white dark:bg-black transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>

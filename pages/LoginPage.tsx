@@ -121,7 +121,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
           artigos: profile?.artigos || 0
       };
 
-      // ADMIN OVERRIDE: Liberação total para o usuário solicitado
+      // ADMIN OVERRIDE
       if (userEmail === 'peboorba@gmail.com') {
           combinedUser.governanca = true;
           combinedUser.gts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -134,7 +134,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) 
   return (
     <div className="min-h-screen bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       <div className="absolute top-[-20%] left-[-20%] w-[1000px] h-[1000px] bg-brand-green/20 rounded-full blur-[150px] animate-pulse-slow"></div>
-      <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-blue-900/20 rounded-full blur-[150px]"></div>
+      <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-emerald-900/10 rounded-full blur-[150px]"></div>
 
       <div className="absolute top-8 left-8 z-20">
         <button onClick={onBack} className="flex items-center text-slate-400 hover:text-white transition-colors font-medium">
