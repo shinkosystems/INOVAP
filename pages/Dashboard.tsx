@@ -2,14 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Logo } from '../components/ui/Logo';
 import { 
   LayoutDashboard, FileText, Users, LogOut, Award, ShieldCheck, Shield, Layers, PlusCircle, 
-  UserPlus, Trash2, CheckCircle, AlertCircle, Image as ImageIcon, Hash, Upload, 
+  UserPlus, Trash2, CheckCircle, AlertCircle, ImageIcon, Hash, Upload, 
   Bold, Italic, List, ListOrdered, Heading1, Heading2, Heading3, Eye, Check, 
   XCircle, MessageSquare, Send, ThumbsUp, BarChart3, Search, Filter, Clock, Settings, 
   User as UserIcon, Calendar, MapPin, Ticket, QrCode, ScanLine, CalendarRange, 
   ArrowRight, Sun, Moon, Plus, Camera, Search as SearchIcon, Users2, CheckSquare,
   Info, Crown, Boxes, UserMinus, ArrowLeft, ChevronDown, UserCheck, ShieldAlert,
   UserCog, ClipboardCheck, BookOpen, Trash, PenTool, ImageOff, Link, Type, X, Loader2,
-  TrendingUp, Star, Globe, Zap, MoreHorizontal, UserPlus2, UserPlus as UserPlusIcon
+  TrendingUp, Star, Globe, Zap, MoreHorizontal, UserPlus2, UserPlus as UserPlusIcon,
+  Menu as MenuIcon
 } from 'lucide-react';
 import { User, GT, Artigo, Evento, Inscricao, Cargo } from '../types';
 import { supabase } from '../services/supabase';
@@ -24,6 +25,7 @@ type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_even
 
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [ranking, setRanking] = useState<User[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [gts, setGts] = useState<GT[]>([]);
@@ -50,7 +52,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const editorRef = useRef<HTMLDivElement>(null);
   const [isSubmittingArticle, setIsSubmittingArticle] = useState(false);
 
-  // Helper for text formatting in the rich text editor
   const execCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);
   };
@@ -102,7 +103,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Funções Administrativas
   const handleToggleGovernanca = async (userId: number, currentStatus: boolean) => {
       setIsUpdatingUser(userId);
       try {
@@ -186,6 +186,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     { id: 'my_events', icon: Ticket, label: 'Meus Tickets' },
   ];
 
+  const handleTabChange = (tabId: Tab) => {
+    setActiveTab(tabId);
+    setSelectedGtForManagement(null);
+    setIsDrawerOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white flex font-sans overflow-hidden relative transition-colors duration-300">
       
@@ -195,12 +201,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         </div>
       )}
 
-      {/* Sidebar */}
-      <div className="w-72 bg-slate-50 dark:bg-white/[0.03] backdrop-blur-xl border-r border-slate-200 dark:border-white/5 flex-shrink-0 hidden md:flex flex-col z-20 m-4 rounded-[2.5rem] h-[calc(100vh-2rem)] shadow-sm">
-        <div className="h-24 flex items-center px-8 cursor-pointer" onClick={() => setActiveTab('overview')}><Logo /></div>
-        <div className="flex-1 py-4 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+      {/* Mobile Drawer Overlay */}
+      {isDrawerOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] md:hidden transition-opacity duration-300"
+          onClick={() => setIsDrawerOpen(false)}
+        />
+      )}
+
+      {/* Mobile Drawer Panel */}
+      <div className={`
+        fixed top-0 left-0 bottom-0 w-80 bg-white dark:bg-brand-black z-[101] md:hidden transform transition-transform duration-500 ease-out border-r border-slate-200 dark:border-white/5 shadow-2xl
+        ${isDrawerOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="h-24 flex items-center justify-between px-8 border-b border-slate-100 dark:border-white/5">
+          <Logo />
+          <button onClick={() => setIsDrawerOpen(false)} className="p-2 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="flex-1 py-6 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           {sidebarItems.map((item) => (
-            <button key={item.id} onClick={() => { setActiveTab(item.id as Tab); setSelectedGtForManagement(null); }} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/10' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'}`}>
+            <button key={item.id} onClick={() => handleTabChange(item.id as Tab)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/10' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'}`}>
               <item.icon size={22} /> <span>{item.label}</span>
             </button>
           ))}
@@ -208,13 +230,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
              <>
                 <div className="h-px bg-slate-200 dark:bg-white/10 my-6 mx-4"></div>
                 <div className="px-5 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Governança</div>
-                <button onClick={() => { setActiveTab('articles_manage'); setSelectedGtForManagement(null); }} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                <button onClick={() => handleTabChange('articles_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <ClipboardCheck size={22} /> <span>Aprovação Artigos</span>
                 </button>
-                <button onClick={() => { setActiveTab('users_manage'); setSelectedGtForManagement(null); }} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'users_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                <button onClick={() => handleTabChange('users_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'users_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <UserCog size={22} /> <span>Gestão Acessos</span>
                 </button>
-                <button onClick={() => { setActiveTab('gts_manage'); setSelectedGtForManagement(null); }} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'gts_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                <button onClick={() => handleTabChange('gts_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'gts_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                  <Boxes size={22} /> <span>Gestão de GTs</span>
+                </button>
+             </>
+          )}
+        </div>
+        <div className="p-6 border-t border-slate-200 dark:border-white/5">
+            <button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-red-500 hover:bg-red-500/10 transition-colors font-bold">
+                <LogOut size={22} /> Sair
+            </button>
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div className="w-72 bg-slate-50 dark:bg-white/[0.03] backdrop-blur-xl border-r border-slate-200 dark:border-white/5 flex-shrink-0 hidden md:flex flex-col z-20 m-4 rounded-[2.5rem] h-[calc(100vh-2rem)] shadow-sm">
+        <div className="h-24 flex items-center px-8 cursor-pointer" onClick={() => handleTabChange('overview')}><Logo /></div>
+        <div className="flex-1 py-4 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+          {sidebarItems.map((item) => (
+            <button key={item.id} onClick={() => handleTabChange(item.id as Tab)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/10' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'}`}>
+              <item.icon size={22} /> <span>{item.label}</span>
+            </button>
+          ))}
+          {user?.governanca && (
+             <>
+                <div className="h-px bg-slate-200 dark:bg-white/10 my-6 mx-4"></div>
+                <div className="px-5 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Governança</div>
+                <button onClick={() => handleTabChange('articles_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                  <ClipboardCheck size={22} /> <span>Aprovação Artigos</span>
+                </button>
+                <button onClick={() => handleTabChange('users_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'users_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                  <UserCog size={22} /> <span>Gestão Acessos</span>
+                </button>
+                <button onClick={() => handleTabChange('gts_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'gts_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <Boxes size={22} /> <span>Gestão de GTs</span>
                 </button>
              </>
@@ -228,16 +282,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       </div>
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-24 flex items-center justify-between px-10 flex-shrink-0 border-b border-slate-100 dark:border-white/5">
-          <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white capitalize">
-            {activeTab === 'articles_manage' ? 'Fila de Curadoria' : activeTab === 'users_manage' ? 'Controle de Acessos' : activeTab === 'gts_manage' ? (selectedGtForManagement ? `Membros: ${selectedGtForManagement.gt}` : 'Grupos de Trabalho') : activeTab.replace('_', ' ')}
-          </h2>
+        <header className="h-24 flex items-center justify-between px-6 md:px-10 flex-shrink-0 border-b border-slate-100 dark:border-white/5">
+          <div className="flex items-center gap-4">
+            {/* Drawer Toggle Button (Visible on Mobile) */}
+            <button 
+              onClick={() => setIsDrawerOpen(true)}
+              className="md:hidden p-3 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-brand-neon hover:text-black transition-all"
+            >
+              <MenuIcon size={24} />
+            </button>
+            <h2 className="text-xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white capitalize">
+              {activeTab === 'articles_manage' ? 'Fila de Curadoria' : activeTab === 'users_manage' ? 'Controle de Acessos' : activeTab === 'gts_manage' ? (selectedGtForManagement ? `Membros: ${selectedGtForManagement.gt}` : 'Grupos de Trabalho') : activeTab.replace('_', ' ')}
+            </h2>
+          </div>
           <div className="flex items-center gap-4">
                <button onClick={onProfileClick} className="flex items-center gap-3 p-1.5 pr-4 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-brand-neon/50 transition-all">
                     <div className="w-10 h-10 rounded-full bg-brand-green overflow-hidden flex items-center justify-center">
                         {user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <UserIcon className="text-black" size={20}/>}
                     </div>
-                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{user?.nome.split(' ')[0]}</span>
+                    <span className="hidden sm:inline text-sm font-bold text-slate-700 dark:text-slate-300">{user?.nome.split(' ')[0]}</span>
                </button>
           </div>
         </header>
@@ -247,12 +310,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             {/* ABA: VISÃO GERAL */}
             {activeTab === 'overview' && (
                 <div className="animate-fade-in-up space-y-12">
-                    <div className="bg-gradient-to-br from-brand-green/20 to-brand-neon/5 dark:from-brand-green/30 dark:to-emerald-900/10 rounded-[3rem] p-12 border border-slate-200 dark:border-white/10 relative overflow-hidden">
+                    <div className="bg-gradient-to-br from-brand-green/20 to-brand-neon/5 dark:from-brand-green/30 dark:to-emerald-900/10 rounded-[3rem] p-8 md:p-12 border border-slate-200 dark:border-white/10 relative overflow-hidden">
                         <div className="relative z-10">
-                            <h1 className="text-5xl font-black mb-4">Olá, {user?.nome.split(' ')[0]}!</h1>
-                            <p className="text-slate-500 dark:text-slate-400 text-xl max-w-xl font-medium leading-relaxed">Continue conectando peças e construindo o futuro do Alto Paraopeba.</p>
+                            <h1 className="text-3xl md:text-5xl font-black mb-4">Olá, {user?.nome.split(' ')[0]}!</h1>
+                            <p className="text-slate-500 dark:text-slate-400 text-lg md:text-xl max-w-xl font-medium leading-relaxed">Continue conectando peças e construindo o futuro do Alto Paraopeba.</p>
                         </div>
-                        <Zap size={200} className="absolute -right-20 -bottom-20 text-brand-neon/10 -rotate-12" />
+                        <Zap size={200} className="absolute -right-20 -bottom-20 text-brand-neon/10 -rotate-12 hidden md:block" />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div className="bg-white dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
@@ -279,15 +342,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <div className="animate-fade-in-up space-y-8">
                     <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden">
                         {ranking.map((member, i) => (
-                            <div key={member.id} className="p-8 flex items-center justify-between border-b border-white/5 last:border-0">
-                                <div className="flex items-center gap-6">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl ${i < 3 ? 'bg-brand-neon text-black' : 'bg-white/5 text-slate-500'}`}>{i + 1}</div>
-                                    <div className="w-14 h-14 rounded-full overflow-hidden bg-brand-green/20">
-                                        {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon className="m-auto mt-4 text-black" />}
+                            <div key={member.id} className="p-6 md:p-8 flex items-center justify-between border-b border-white/5 last:border-0">
+                                <div className="flex items-center gap-4 md:gap-6">
+                                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-lg md:text-xl ${i < 3 ? 'bg-brand-neon text-black' : 'bg-white/5 text-slate-500'}`}>{i + 1}</div>
+                                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-full overflow-hidden bg-brand-green/20">
+                                        {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon className="m-auto mt-3 md:mt-4 text-black" />}
                                     </div>
-                                    <div><div className="font-bold text-lg">{member.nome}</div><div className="text-xs text-slate-500">{cargos.find(c => c.id === member.cargo)?.cargo}</div></div>
+                                    <div><div className="font-bold text-base md:text-lg">{member.nome}</div><div className="text-xs text-slate-500">{cargos.find(c => c.id === member.cargo)?.cargo}</div></div>
                                 </div>
-                                <div className="text-right"><div className="text-2xl font-black text-brand-neon">{member.artigos}</div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Artigos</div></div>
+                                <div className="text-right"><div className="text-xl md:text-2xl font-black text-brand-neon">{member.artigos}</div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Artigos</div></div>
                             </div>
                         ))}
                     </div>
@@ -301,7 +364,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
                         <input type="text" placeholder="Buscar inovadores..." value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl py-6 pl-16 pr-6 focus:border-brand-neon outline-none transition-all" />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {members.filter(m => m.nome.toLowerCase().includes(memberSearch.toLowerCase())).map(member => (
                             <div key={member.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] flex flex-col items-center text-center">
                                 <div className="w-20 h-20 rounded-full overflow-hidden bg-brand-green/10 mb-6">{member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={32} className="m-auto mt-5 text-slate-400" />}</div>
@@ -344,8 +407,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
             {activeTab === 'users_manage' && (
                 <div className="animate-fade-in-up space-y-8">
-                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden">
-                        <table className="w-full text-left">
+                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-x-auto">
+                        <table className="w-full text-left min-w-[600px]">
                             <thead className="bg-white/5 border-b border-white/5">
                                 <tr>
                                     <th className="p-6 text-[10px] font-black uppercase text-slate-500">Inovador</th>
@@ -395,9 +458,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <div className="animate-fade-in-up space-y-8">
                     {!selectedGtForManagement ? (
                         <>
-                            <div className="flex justify-between items-center mb-8">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                                 <div><h3 className="text-xl font-bold">Grupos de Trabalho Ativos</h3><p className="text-sm text-slate-500">Gerencie a estrutura e contagem de cada GT.</p></div>
-                                <button className="bg-brand-neon text-black px-8 py-3 rounded-xl font-black flex items-center gap-2"><Plus size={18} /> Novo GT</button>
+                                <button className="bg-brand-neon text-black px-8 py-3 rounded-xl font-black flex items-center gap-2 w-full sm:w-auto justify-center"><Plus size={18} /> Novo GT</button>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {gts.map(gt => (
@@ -493,7 +556,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
             {/* ABA: AGENDA & TICKETS (Sempre acessíveis) */}
             {activeTab === 'agenda' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-fade-in-up">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up">
                     {availableEvents.map(event => (
                         <div key={event.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden group">
                             <div className="h-44 bg-slate-900 relative">
@@ -512,8 +575,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             {myTickets.map(ticket => (
                                 <div key={ticket.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 flex gap-8 relative overflow-hidden group">
-                                    <div className="w-32 h-32 bg-white rounded-3xl flex items-center justify-center"><QrCode size={80} className="text-black" /></div>
-                                    <div><div className="text-[10px] font-black text-brand-neon uppercase tracking-widest mb-2">Confirmado</div><h4 className="text-2xl font-black mb-4">{ticket.evento?.titulo}</h4><div className="flex items-center gap-2 text-slate-500 text-sm"><Calendar size={14} /> {new Date(ticket.evento?.data_inicio || '').toLocaleDateString('pt-BR')}</div></div>
+                                    <div className="w-32 h-32 bg-white rounded-3xl flex items-center justify-center flex-shrink-0"><QrCode size={80} className="text-black" /></div>
+                                    <div><div className="text-[10px] font-black text-brand-neon uppercase tracking-widest mb-2">Confirmado</div><h4 className="text-xl md:text-2xl font-black mb-4">{ticket.evento?.titulo}</h4><div className="flex items-center gap-2 text-slate-500 text-sm"><Calendar size={14} /> {new Date(ticket.evento?.data_inicio || '').toLocaleDateString('pt-BR')}</div></div>
                                 </div>
                             ))}
                         </div>
@@ -523,8 +586,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
             {activeTab === 'articles' && (
                 <div className="animate-fade-in-up space-y-8">
-                    <div className="flex justify-between items-center"><h3 className="text-2xl font-black flex items-center gap-3"><PenTool className="text-brand-neon" /> Suas Publicações</h3><button onClick={() => setIsCreatingArticle(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-brand-neon/20 flex items-center gap-2"><Plus size={20} /> Novo Artigo</button></div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"><h3 className="text-2xl font-black flex items-center gap-3"><PenTool className="text-brand-neon" /> Suas Publicações</h3><button onClick={() => setIsCreatingArticle(true)} className="w-full sm:w-auto bg-brand-neon text-black px-8 py-4 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-brand-neon/20 flex items-center justify-center gap-2"><Plus size={20} /> Novo Artigo</button></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                         {myArticles.map(artigo => (
                             <div key={artigo.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] overflow-hidden group">
                                 <div className="h-44 bg-slate-900 relative">{artigo.capa ? <img src={artigo.capa} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-all" /> : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><ImageIcon className="text-brand-green/30" /></div>}<div className="absolute top-4 right-4">{artigo.aprovado ? <span className="bg-brand-neon text-black text-[10px] font-black px-3 py-1 rounded-full">PUBLICADO</span> : <span className="bg-amber-500 text-black text-[10px] font-black px-3 py-1 rounded-full">EM REVISÃO</span>}</div></div>
@@ -543,7 +606,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setIsCreatingArticle(false)}></div>
               <div className="relative bg-white dark:bg-[#0a0a0a] w-full max-w-6xl h-full md:h-[95vh] md:rounded-[3rem] overflow-hidden shadow-2xl flex flex-col animate-fade-in-up">
                   <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between flex-shrink-0">
-                      <div className="flex items-center gap-4"><div className="p-3 bg-brand-neon/10 rounded-2xl text-brand-neon"><PenTool size={24} /></div><div><h3 className="text-xl font-black">Editor de Conhecimento</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">INOVAP Lab</p></div></div>
+                      <div className="flex items-center gap-4"><div className="p-3 bg-brand-neon/10 rounded-2xl text-brand-neon"><PenTool size={24} /></div><div className="hidden sm:block"><h3 className="text-xl font-black">Editor de Conhecimento</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">INOVAP Lab</p></div></div>
                       <button onClick={() => setIsCreatingArticle(false)} className="text-slate-500 hover:text-white transition-colors p-2"><X size={28} /></button>
                   </div>
                   <div className="flex-1 overflow-y-auto flex flex-col md:flex-row">
@@ -551,13 +614,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                           <div><label className="text-[10px] font-black text-brand-neon uppercase mb-4 block">Categoria</label><select value={articleForm.gt_id} onChange={(e) => setArticleForm(prev => ({ ...prev, gt_id: Number(e.target.value) }))} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:border-brand-neon outline-none">{<option value={0}>GT...</option>}{gts.map(gt => <option key={gt.id} value={gt.id} className="bg-black">{gt.gt}</option>)}</select></div>
                       </div>
                       <div className="flex-1 flex flex-col">
-                          <div className="px-8 py-4 bg-white/[0.02] border-b border-white/10 flex gap-2"><button onClick={() => execCommand('bold')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon"><Bold size={18} /></button><button onClick={() => execCommand('formatBlock', 'h2')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon"><Heading1 size={18} /></button></div>
-                          <div className="flex-1 p-8 md:p-14 overflow-y-auto bg-black/20"><input type="text" value={articleForm.titulo} onChange={(e) => setArticleForm(prev => ({ ...prev, titulo: e.target.value }))} placeholder="Título do Artigo" className="w-full bg-transparent border-none focus:ring-0 text-4xl font-black mb-4"/><input type="text" value={articleForm.subtitulo} onChange={(e) => setArticleForm(prev => ({ ...prev, subtitulo: e.target.value }))} placeholder="Subtítulo..." className="w-full bg-transparent border-none focus:ring-0 text-xl font-light mb-12 text-slate-500"/><div ref={editorRef} contentEditable suppressContentEditableWarning={true} className="prose prose-invert max-w-none focus:outline-none min-h-[400px] text-lg leading-relaxed text-slate-300"></div></div>
+                          <div className="px-8 py-4 bg-white/[0.02] border-b border-white/10 flex gap-2 overflow-x-auto"><button onClick={() => execCommand('bold')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon flex-shrink-0"><Bold size={18} /></button><button onClick={() => execCommand('formatBlock', 'h2')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon flex-shrink-0"><Heading1 size={18} /></button></div>
+                          <div className="flex-1 p-6 md:p-14 overflow-y-auto bg-black/20">
+                            {/* Corrected: Use setArticleForm instead of setFormData */}
+                            <input type="text" value={articleForm.titulo} onChange={(e) => setArticleForm(prev => ({ ...prev, titulo: e.target.value }))} placeholder="Título do Artigo" className="w-full bg-transparent border-none focus:ring-0 text-2xl md:text-4xl font-black mb-4"/>
+                            <input type="text" value={articleForm.subtitulo} onChange={(e) => setArticleForm(prev => ({ ...prev, subtitulo: e.target.value }))} placeholder="Subtítulo..." className="w-full bg-transparent border-none focus:ring-0 text-lg md:text-xl font-light mb-12 text-slate-500"/>
+                            <div ref={editorRef} contentEditable suppressContentEditableWarning={true} className="prose prose-invert max-w-none focus:outline-none min-h-[300px] text-base md:text-lg leading-relaxed text-slate-300"></div>
+                          </div>
                       </div>
                   </div>
                   <div className="px-8 py-6 border-t border-white/10 flex justify-end gap-4 flex-shrink-0">
-                      <button onClick={() => setIsCreatingArticle(false)} className="px-8 py-3 font-bold text-slate-500">Descartar</button>
-                      <button onClick={submitArticle} disabled={isSubmittingArticle} className="bg-brand-neon text-black px-12 py-3 rounded-xl font-black hover:scale-105 transition-all flex items-center gap-2">{isSubmittingArticle ? <Loader2 className="animate-spin" /> : <Send size={20} />} Enviar para Curadoria</button>
+                      <button onClick={() => setIsCreatingArticle(false)} className="hidden sm:block px-8 py-3 font-bold text-slate-500">Descartar</button>
+                      <button onClick={submitArticle} disabled={isSubmittingArticle} className="w-full sm:w-auto bg-brand-neon text-black px-12 py-3 rounded-xl font-black hover:scale-105 transition-all flex items-center justify-center gap-2">{isSubmittingArticle ? <Loader2 className="animate-spin" /> : <Send size={20} />} Enviar para Curadoria</button>
                   </div>
               </div>
           </div>
