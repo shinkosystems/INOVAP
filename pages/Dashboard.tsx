@@ -14,7 +14,7 @@ import {
   CalendarDays, Users as UsersIcon, ChevronRight, Lock, Filter,
   CheckSquare as TaskIcon, ListTodo, CalendarClock, UserCheck,
   LayoutList, Calendar, ChevronLeft, Paperclip, MessageSquare, Download,
-  ChevronRight as ChevronRightIcon, TodayIcon
+  ChevronRight as ChevronRightIcon
 } from 'lucide-react';
 import { User, GT, Artigo, Evento, Inscricao, Cargo, PontuacaoRegra, PontuacaoLog, Empresa, Tarefa, TarefaComentario } from '../types';
 import { supabase } from '../services/supabase';
@@ -53,7 +53,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [articleFilter, setArticleFilter] = useState<'pending' | 'active'>('pending');
   const [selectedArticleForReview, setSelectedArticleForReview] = useState<Artigo | null>(null);
   const [selectedGtForManagement, setSelectedGtForManagement] = useState<GT | null>(null);
-  const [userSearchInput, setUserSearchInput] = useState('');
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   
   // GT Management Specific States
@@ -149,7 +148,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (logsRes.data) setLogs(logsRes.data as any);
       if (tasksRes.data) setTasks(tasksRes.data as any);
 
-      // Process event stats (registration counts)
       if (inscriptionsCountRes.data) {
         const stats: Record<number, number> = {};
         inscriptionsCountRes.data.forEach(ins => {
@@ -174,453 +172,207 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     fetchData();
   }, [fetchData]);
 
-  // Load comments when task is selected
+  // Task Details Load
   useEffect(() => {
     if (selectedTaskDetail) {
       fetchComments(selectedTaskDetail.id);
-    } else {
-      setTaskComments([]);
     }
   }, [selectedTaskDetail]);
 
   const fetchComments = async (taskId: number) => {
-    try {
-      const { data, error } = await supabase
-        .from('tarefa_comentarios')
-        .select('*, autor:users(*)')
-        .eq('tarefa_id', taskId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      setTaskComments(data || []);
-    } catch (e) {
-      console.error("Erro ao buscar comentários", e);
-    }
+    const { data } = await supabase.from('tarefa_comentarios').select('*, autor:users(*)').eq('tarefa_id', taskId).order('created_at', { ascending: true });
+    setTaskComments(data || []);
   };
 
   const handlePostComment = async () => {
     if (!newComment.trim() || !selectedTaskDetail || !user) return;
-    try {
-      const { error } = await supabase
-        .from('tarefa_comentarios')
-        .insert([{
-          tarefa_id: selectedTaskDetail.id,
-          autor_id: user.id,
-          conteudo: newComment
-        }]);
-      if (error) throw error;
-      setNewComment('');
-      fetchComments(selectedTaskDetail.id);
-    } catch (e) {
-      showNotification('error', 'Erro ao enviar comentário.');
-    }
+    const { error } = await supabase.from('tarefa_comentarios').insert([{ tarefa_id: selectedTaskDetail.id, autor_id: user.id, conteudo: newComment }]);
+    if (!error) { setNewComment(''); fetchComments(selectedTaskDetail.id); }
   };
 
   const handleAnexoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedTaskDetail || !user) return;
-    
+    if (!file || !selectedTaskDetail) return;
     setIsUploadingAnexo(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `task_${selectedTaskDetail.id}_${Date.now()}.${fileExt}`;
-      const filePath = `anexosTarefas/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('imagensBlog')
-        .upload(filePath, file);
-
+      const fileName = `task_${selectedTaskDetail.id}_${Date.now()}.${file.name.split('.').pop()}`;
+      const { error: uploadError } = await supabase.storage.from('imagensBlog').upload(`anexosTarefas/${fileName}`, file);
       if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage.from('imagensBlog').getPublicUrl(filePath);
-      
+      const { data: { publicUrl } } = supabase.storage.from('imagensBlog').getPublicUrl(`anexosTarefas/${fileName}`);
       const novosAnexos = [...(selectedTaskDetail.anexos || []), { nome: file.name, url: publicUrl }];
-      
-      const { error: updateError } = await supabase
-        .from('tarefas')
-        .update({ anexos: novosAnexos })
-        .eq('id', selectedTaskDetail.id);
-
-      if (updateError) throw updateError;
-
+      await supabase.from('tarefas').update({ anexos: novosAnexos }).eq('id', selectedTaskDetail.id);
       setSelectedTaskDetail({ ...selectedTaskDetail, anexos: novosAnexos });
       showNotification('success', 'Anexo adicionado!');
-      fetchData();
-    } catch (e) {
-      showNotification('error', 'Erro ao carregar anexo.');
-    } finally {
-      setIsUploadingAnexo(false);
-    }
+    } catch (e) { showNotification('error', 'Falha no upload.'); } finally { setIsUploadingAnexo(false); }
   };
 
+  // Fix: handleUpdateTaskField now also updates selectedTaskDetail to reflect changes in the modal immediately
   const handleUpdateTaskField = async (taskId: number, field: string, value: any) => {
-    setIsProcessingAction(true);
-    try {
-      const { error } = await supabase.from('tarefas').update({ [field]: value }).eq('id', taskId);
-      if (error) throw error;
-      showNotification('success', 'Tarefa atualizada!');
+    const { error } = await supabase.from('tarefas').update({ [field]: value }).eq('id', taskId);
+    if (!error) { 
+      showNotification('success', 'Atualizado!'); 
       fetchData();
-      
-      if (selectedTaskDetail && selectedTaskDetail.id === taskId) {
-        const updated = { ...selectedTaskDetail, [field]: value };
-        if (field === 'responsavel_id') {
-           updated.responsavel = members.find(m => m.id === value);
-        }
-        setSelectedTaskDetail(updated);
+      if (selectedTaskDetail?.id === taskId) {
+        setSelectedTaskDetail(prev => prev ? { ...prev, [field]: value } : null);
       }
-    } catch (e) {
-      showNotification('error', 'Erro ao atualizar tarefa.');
-    } finally {
-      setIsProcessingAction(false);
     }
   };
 
-  const handleUpdateTaskStatus = async (taskId: number, newStatus: string) => {
-    try {
-      const { error } = await supabase.from('tarefas').update({ status: newStatus }).eq('id', taskId);
-      if (error) throw error;
-      showNotification('success', 'Status atualizado!');
-      fetchData();
-      if (selectedTaskDetail && selectedTaskDetail.id === taskId) {
-        setSelectedTaskDetail({...selectedTaskDetail, status: newStatus as any});
-      }
-    } catch (e) {
-      showNotification('error', 'Falha ao atualizar status.');
-    }
+  const handleCreateTask = async () => {
+    if (!newTaskData.titulo || !user) return;
+    setIsProcessingAction(true);
+    const { error } = await supabase.from('tarefas').insert([{ ...newTaskData, criado_por: user.uuid }]);
+    if (!error) { showNotification('success', 'Tarefa criada!'); setIsAddingTask(false); fetchData(); }
+    setIsProcessingAction(false);
   };
 
   const handleDeleteTask = async (taskId: number) => {
-    if (!confirm('Tem certeza que deseja remover esta tarefa?')) return;
-    setIsProcessingAction(true);
-    try {
-      const { error } = await supabase.from('tarefas').delete().eq('id', taskId);
-      if (error) throw error;
-      showNotification('success', 'Tarefa removida com sucesso!');
-      setSelectedTaskDetail(null);
-      fetchData();
-    } catch (e) {
-      showNotification('error', 'Erro ao remover tarefa.');
-    } finally {
-      setIsProcessingAction(false);
-    }
+    if (!confirm('Excluir esta tarefa?')) return;
+    const { error } = await supabase.from('tarefas').delete().eq('id', taskId);
+    if (!error) { showNotification('success', 'Removida!'); setSelectedTaskDetail(null); fetchData(); }
   };
 
-  // Fix: Added missing handleCreateTask function
-  const handleCreateTask = async () => {
-    if (!newTaskData.titulo || isProcessingAction || !user) return;
-    setIsProcessingAction(true);
-    try {
-      const { error } = await supabase.from('tarefas').insert([{
-        titulo: newTaskData.titulo,
-        descricao: newTaskData.descricao,
-        responsavel_id: newTaskData.responsavel_id,
-        gt_id: newTaskData.gt_id,
-        prazo: newTaskData.prazo,
-        status: newTaskData.status || 'Pendente',
-        criado_por: user.uuid
-      }]);
-      if (error) throw error;
-      showNotification('success', 'Tarefa criada com sucesso!');
-      setIsAddingTask(false);
-      setNewTaskData({
-        titulo: '',
-        descricao: '',
-        responsavel_id: undefined,
-        gt_id: undefined,
-        prazo: '',
-        status: 'Pendente'
-      });
-      fetchData();
-    } catch (e) {
-      showNotification('error', 'Erro ao criar tarefa.');
-    } finally {
-      setIsProcessingAction(false);
-    }
-  };
+  // Memoized Filters
+  const filteredTasks = useMemo(() => tasks.filter(t => (taskFilters.gt === 'all' || t.gt_id === taskFilters.gt) && (taskFilters.user === 'all' || t.responsavel_id === taskFilters.user)), [tasks, taskFilters]);
+  const mySortedTasks = useMemo(() => tasks.filter(t => t.responsavel_id === user?.id && t.status !== 'Concluído').sort((a, b) => (a.prazo && b.prazo) ? new Date(a.prazo).getTime() - new Date(b.prazo).getTime() : 0), [tasks, user]);
+  const activeArticles = useMemo(() => allArticles.filter(a => a.aprovado), [allArticles]);
+  const articlesInReview = useMemo(() => allArticles.filter(a => !a.aprovado), [allArticles]);
+  const filteredArticlesForManage = useMemo(() => articleFilter === 'active' ? activeArticles : articlesInReview, [articleFilter, activeArticles, articlesInReview]);
 
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
-      const matchGt = taskFilters.gt === 'all' || task.gt_id === taskFilters.gt;
-      const matchUser = taskFilters.user === 'all' || task.responsavel_id === taskFilters.user;
-      return matchGt && matchUser;
-    });
-  }, [tasks, taskFilters]);
-
-  // CALENDAR LOGIC ENHANCED
+  // Calendar Logic
   const navigateCalendar = (direction: number) => {
-      const newDate = new Date(calendarAnchorDate);
-      if (calendarViewType === 'month') newDate.setMonth(newDate.getMonth() + direction);
-      if (calendarViewType === 'week') newDate.setDate(newDate.getDate() + (direction * 7));
-      if (calendarViewType === 'day') newDate.setDate(newDate.getDate() + direction);
-      setCalendarAnchorDate(newDate);
+    const newDate = new Date(calendarAnchorDate);
+    if (calendarViewType === 'month') newDate.setMonth(newDate.getMonth() + direction);
+    else if (calendarViewType === 'week') newDate.setDate(newDate.getDate() + (direction * 7));
+    else newDate.setDate(newDate.getDate() + direction);
+    setCalendarAnchorDate(newDate);
   };
 
   const calendarDays = useMemo(() => {
     const days = [];
     const year = calendarAnchorDate.getFullYear();
     const month = calendarAnchorDate.getMonth();
-
     if (calendarViewType === 'month') {
-        const firstDayOfMonth = new Date(year, month, 1);
-        const lastDayOfMonth = new Date(year, month + 1, 0);
-        const firstDayWeekday = firstDayOfMonth.getDay();
-        
-        for (let i = firstDayWeekday; i > 0; i--) {
-          days.push({ date: new Date(year, month, 1 - i), currentPeriod: false });
-        }
-        for (let i = 1; i <= lastDayOfMonth.getDate(); i++) {
-          days.push({ date: new Date(year, month, i), currentPeriod: true });
-        }
-        const remaining = 42 - days.length;
-        for (let i = 1; i <= remaining; i++) {
-          days.push({ date: new Date(year, month + 1, i), currentPeriod: false });
-        }
+      const first = new Date(year, month, 1).getDay();
+      for (let i = first; i > 0; i--) days.push({ date: new Date(year, month, 1 - i), currentPeriod: false });
+      for (let i = 1; i <= new Date(year, month + 1, 0).getDate(); i++) days.push({ date: new Date(year, month, i), currentPeriod: true });
     } else if (calendarViewType === 'week') {
-        const startOfWeek = new Date(calendarAnchorDate);
-        startOfWeek.setDate(calendarAnchorDate.getDate() - calendarAnchorDate.getDay());
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(startOfWeek);
-            d.setDate(startOfWeek.getDate() + i);
-            days.push({ date: d, currentPeriod: true });
-        }
-    } else {
-        days.push({ date: new Date(calendarAnchorDate), currentPeriod: true });
-    }
-
+      const start = new Date(calendarAnchorDate);
+      start.setDate(calendarAnchorDate.getDate() - calendarAnchorDate.getDay());
+      for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push({ date: d, currentPeriod: true }); }
+    } else { days.push({ date: new Date(calendarAnchorDate), currentPeriod: true }); }
     return days;
   }, [calendarAnchorDate, calendarViewType]);
 
   const tasksByDay = useMemo(() => {
     const map: Record<string, Tarefa[]> = {};
-    filteredTasks.forEach(task => {
-      if (task.prazo) {
-        const key = new Date(task.prazo).toISOString().split('T')[0];
-        if (!map[key]) map[key] = [];
-        map[key].push(task);
-      }
-    });
+    filteredTasks.forEach(t => { if (t.prazo) { const k = new Date(t.prazo).toISOString().split('T')[0]; map[k] = [...(map[k] || []), t]; } });
     return map;
   }, [filteredTasks]);
 
-  // DRAG AND DROP HANDLERS
-  const handleDragStart = (e: React.DragEvent, taskId: number) => {
-      e.dataTransfer.setData("taskId", taskId.toString());
-      e.dataTransfer.effectAllowed = "move";
-  };
-
   const handleDrop = async (e: React.DragEvent, date: Date) => {
-      e.preventDefault();
-      const taskId = parseInt(e.dataTransfer.getData("taskId"));
-      if (!isNaN(taskId)) {
-          const isoDate = date.toISOString().split('T')[0];
-          await handleUpdateTaskField(taskId, 'prazo', isoDate);
-      }
+    e.preventDefault();
+    const id = parseInt(e.dataTransfer.getData("taskId"));
+    if (!isNaN(id)) await handleUpdateTaskField(id, 'prazo', date.toISOString().split('T')[0]);
   };
 
-  // Agenda logic
-  const handleWithdrawTicket = async (evento: Evento) => {
-    if (!user || isProcessingAction) return;
-    if (myTickets.some(t => t.evento_id === evento.id)) {
-      showNotification('error', 'Você já possui um ingresso para este evento.');
-      return;
-    }
-    const taken = eventStats[evento.id] || 0;
-    if (evento.vagas && taken >= evento.vagas) {
-      showNotification('error', 'Infelizmente as vagas estão esgotadas.');
-      return;
-    }
+  // Article Actions
+  const handleApproveArticle = async (id: number) => {
     setIsProcessingAction(true);
-    try {
-      const { error } = await supabase.from('inscricoes').insert([{
-        evento_id: evento.id,
-        user_id: user.id,
-        status: 'confirmado'
-      }]);
-      if (error) throw error;
-      showNotification('success', `Ingresso para "${evento.titulo}" retirado com sucesso!`);
-      setSelectedEventDetails(null);
-      fetchData();
-    } catch (e) {
-      showNotification('error', 'Erro ao processar inscrição.');
-    } finally {
-      setIsProcessingAction(false);
-    }
+    const { error } = await supabase.from('artigos').update({ aprovado: true }).eq('id', id);
+    if (!error) { showNotification('success', 'Aprovado!'); setSelectedArticleForReview(null); fetchData(); }
+    setIsProcessingAction(false);
   };
 
-  const prioritizedEvents = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    let filtered = [...events];
-    if (filterYear !== 'all') filtered = filtered.filter(e => new Date(e.data_inicio).getFullYear() === filterYear);
-    if (filterMonth !== 'all') filtered = filtered.filter(e => new Date(e.data_inicio).getMonth() === filterMonth);
-    if (filterYear === 'all' && filterMonth === 'all') filtered = filtered.filter(e => new Date(e.data_inicio) >= new Date(now.setHours(0,0,0,0)));
-    return filtered.sort((a, b) => {
-      const dateA = new Date(a.data_inicio);
-      const dateB = new Date(b.data_inicio);
-      return dateA.getTime() - dateB.getTime();
-    });
-  }, [events, filterMonth, filterYear]);
-
-  // Article Creation Logic
-  const execEditorCommand = (command: string, value: string = '') => {
-    document.execCommand(command, false, value);
-    if (editorRef.current) setNewArticleData(prev => ({ ...prev, conteudo: editorRef.current?.innerHTML || '' }));
+  const handleSaveArticle = async () => {
+    if (!newArticleData.titulo || !user) return;
+    setIsProcessingAction(true);
+    const { error } = await supabase.from('artigos').insert([{ ...newArticleData, autor: user.uuid, aprovado: false }]);
+    if (!error) { showNotification('success', 'Enviado para revisão!'); setIsCreatingArticle(false); fetchData(); }
+    setIsProcessingAction(false);
   };
 
   const handleArticleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
-    setIsProcessingAction(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `article_${Date.now()}.${fileExt}`;
-      const filePath = `imagensBlog/${fileName}`;
-      const { error: uploadError } = await supabase.storage.from('imagensBlog').upload(filePath, file);
-      if (uploadError) throw uploadError;
-      const { data } = supabase.storage.from('imagensBlog').getPublicUrl(filePath);
-      setNewArticleData(prev => ({ ...prev, capa: data.publicUrl }));
-      showNotification('success', 'Capa carregada com sucesso!');
-    } catch (e) { showNotification('error', 'Erro ao carregar imagem.'); } finally { setIsProcessingAction(false); }
-  };
-
-  const handleSaveArticle = async () => {
-    if (!newArticleData.titulo || !newArticleData.conteudo || !user) {
-      showNotification('error', 'Título e Conteúdo são obrigatórios.');
-      return;
+    if (!file) return;
+    const { data } = await supabase.storage.from('imagensBlog').upload(`artigos/${Date.now()}_${file.name}`, file);
+    if (data) {
+      const { data: { publicUrl } } = supabase.storage.from('imagensBlog').getPublicUrl(data.path);
+      setNewArticleData({ ...newArticleData, capa: publicUrl });
     }
-    setIsProcessingAction(true);
-    try {
-      const { error } = await supabase.from('artigos').insert([{
-        titulo: newArticleData.titulo,
-        subtitulo: newArticleData.subtitulo,
-        conteudo: newArticleData.conteudo,
-        capa: newArticleData.capa,
-        tags: newArticleData.tags,
-        autor: user.uuid,
-        aprovado: false
-      }]);
-      if (error) throw error;
-      showNotification('success', 'Artigo enviado para revisão!');
-      setIsCreatingArticle(false);
-      setNewArticleData({ titulo: '', subtitulo: '', conteudo: '', capa: '', tags: [] });
-      fetchData();
-    } catch (e) { showNotification('error', 'Erro ao salvar artigo.'); } finally { setIsProcessingAction(false); }
   };
 
-  // QR Scanner Logic
-  const handleCheckin = async (inscricaoId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('inscricoes')
-        .update({ status: 'checkin_realizado', checkin_at: new Date().toISOString() })
-        .eq('id', inscricaoId)
-        .select('*, user:users(nome), evento:eventos(titulo)')
-        .single();
-      if (error) throw error;
-      showNotification('success', `Check-in: ${data.user.nome} em ${data.evento.titulo}`);
-    } catch (e: any) { showNotification('error', 'Inscrição inválida ou já utilizada.'); }
+  // Agenda Actions
+  const handleWithdrawTicket = async (evt: Evento) => {
+    if (!user) return;
+    const { error } = await supabase.from('inscricoes').insert([{ evento_id: evt.id, user_id: user.id, status: 'confirmado' }]);
+    if (!error) { showNotification('success', 'Ingresso retirado!'); fetchData(); }
+  };
+
+  const prioritizedEvents = useMemo(() => {
+    let filtered = [...events];
+    if (filterYear !== 'all') filtered = filtered.filter(e => new Date(e.data_inicio).getFullYear() === filterYear);
+    if (filterMonth !== 'all') filtered = filtered.filter(e => new Date(e.data_inicio).getMonth() === filterMonth);
+    return filtered.sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+  }, [events, filterMonth, filterYear]);
+
+  // Checkin Scanner
+  const handleCheckin = async (id: string) => {
+    const { data, error } = await supabase.from('inscricoes').update({ status: 'checkin_realizado', checkin_at: new Date().toISOString() }).eq('id', id).select('*, user:users(nome)').single();
+    if (!error) showNotification('success', `Check-in: ${data.user.nome}`);
+    else showNotification('error', 'Código de ingresso inválido ou já utilizado.');
   };
 
   const startScanner = () => setIsScanning(true);
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try { if (scannerRef.current.isScanning) await scannerRef.current.stop(); } catch (e) { console.error(e); }
-      scannerRef.current = null;
-    }
-    setIsScanning(false);
-  };
+  const stopScanner = () => { if (scannerRef.current) scannerRef.current.stop(); setIsScanning(false); };
 
   useEffect(() => {
-    let mounted = true;
     if (isScanning && activeTab === 'checkin') {
-      const initScanner = async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (!mounted || !document.getElementById("reader")) return;
-        const html5QrCode = new Html5Qrcode("reader");
-        scannerRef.current = html5QrCode;
-        try {
-          await html5QrCode.start(
-            { facingMode: "environment" },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            async (decodedText) => { await handleCheckin(decodedText); await stopScanner(); },
-            () => { }
-          );
-        } catch (err) { setIsScanning(false); }
-      };
-      initScanner();
+      const scanner = new Html5Qrcode("reader");
+      scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => { handleCheckin(text); stopScanner(); }, () => {});
+      scannerRef.current = scanner;
     }
-    return () => {
-      mounted = false;
-      if (scannerRef.current) { scannerRef.current.stop().catch(console.error); scannerRef.current = null; }
-    };
+    return () => { if (scannerRef.current) scannerRef.current.stop(); };
   }, [isScanning, activeTab]);
 
-  // GT Logic
+  // GT Management
   const handleCreateGt = async () => {
-    if (!newGtName.trim() || isProcessingAction) return;
-    setIsProcessingAction(true);
-    try {
-      const { error } = await supabase.from('gts').insert([{ gt: newGtName }]);
-      if (error) throw error;
-      showNotification('success', 'Novo GT criado com sucesso!');
-      setNewGtName(''); setIsAddingGt(false); fetchData();
-    } catch (e) { showNotification('error', 'Erro ao criar GT.'); } finally { setIsProcessingAction(false); }
+    if (!newGtName.trim()) return;
+    const { error } = await supabase.from('gts').insert([{ gt: newGtName }]);
+    if (!error) { showNotification('success', 'GT Criado!'); setIsAddingGt(false); setNewGtName(''); fetchData(); }
   };
 
-  const handleAddMemberToGt = async (targetUser: User, gtId?: number) => {
-    const finalGtId = gtId || selectedGtForManagement?.id;
-    if (!finalGtId || isProcessingAction) return;
-    setIsProcessingAction(true);
-    try {
-      const currentGts = targetUser.gts || [];
-      if (currentGts.includes(finalGtId)) { showNotification('error', 'Membro já vinculado.'); return; }
-      const { error } = await supabase.from('users').update({ gts: [...currentGts, finalGtId] }).eq('id', targetUser.id);
-      if (error) throw error;
-      showNotification('success', `${targetUser.nome} adicionado ao GT!`);
-      fetchData();
-      if (selectedMemberForGts && selectedMemberForGts.id === targetUser.id) setSelectedMemberForGts({ ...selectedMemberForGts, gts: [...currentGts, finalGtId] });
-    } catch (e) { showNotification('error', 'Falha na operação.'); } finally { setIsProcessingAction(false); }
+  const handleAddMemberToGt = async (target: User, gtId?: number) => {
+    const id = gtId || selectedGtForManagement?.id;
+    if (!id) return;
+    const { error } = await supabase.from('users').update({ gts: [...(target.gts || []), id] }).eq('id', target.id);
+    if (!error) { showNotification('success', 'Adicionado!'); fetchData(); }
   };
 
-  const handleRemoveMemberFromGt = async (targetUser: User, gtId?: number) => {
-    const finalGtId = gtId || selectedGtForManagement?.id;
-    if (!finalGtId || isProcessingAction) return;
-    setIsProcessingAction(true);
-    try {
-      const currentGts = targetUser.gts || [];
-      const newGts = currentGts.filter(id => id !== finalGtId);
-      const { error } = await supabase.from('users').update({ gts: newGts }).eq('id', targetUser.id);
-      if (error) throw error;
-      showNotification('success', 'Membro removido do grupo.');
-      fetchData();
-      if (selectedMemberForGts && selectedMemberForGts.id === targetUser.id) setSelectedMemberForGts({ ...selectedMemberForGts, gts: newGts });
-    } catch (e) { showNotification('error', 'Erro ao remover.'); } finally { setIsProcessingAction(false); }
+  const handleRemoveMemberFromGt = async (target: User, gtId?: number) => {
+    const id = gtId || selectedGtForManagement?.id;
+    if (!id) return;
+    const { error = null } = await supabase.from('users').update({ gts: target.gts?.filter(g => g !== id) }).eq('id', target.id);
+    if (!error) { showNotification('success', 'Removido!'); fetchData(); }
   };
 
-  const membersToInvite = useMemo(() => !selectedGtForManagement ? [] : members.filter(u => !u.gts?.includes(selectedGtForManagement.id)), [members, selectedGtForManagement]);
-  const gtMembers = useMemo(() => !selectedGtForManagement ? [] : members.filter(u => u.gts?.includes(selectedGtForManagement.id)), [members, selectedGtForManagement]);
+  // Gamification Actions
+  const handleEditRule = (rule: PontuacaoRegra) => {
+    setEditingRuleId(rule.id);
+    setEditingValue(rule.valor.toString());
+  };
 
-  // Gamification
-  const handleEditRule = (rule: PontuacaoRegra) => { setEditingRuleId(rule.id); setEditingValue(rule.valor.toString()); };
   const handleSaveRule = async () => {
-    if (editingRuleId === null || isProcessingAction) return;
-    const newValue = parseInt(editingValue);
-    if (isNaN(newValue)) { showNotification('error', 'Valor inválido.'); return; }
-    setIsProcessingAction(true);
-    try {
-      const { error } = await supabase.from('pontuacao_regras').update({ valor: newValue }).eq('id', editingRuleId);
-      if (error) throw error;
-      showNotification('success', 'Regra atualizada com sucesso!');
-      setEditingRuleId(null); fetchData();
-    } catch (e: any) { showNotification('error', 'Erro ao salvar regra.'); } finally { setIsProcessingAction(false); }
+    if (editingRuleId === null) return;
+    await supabase.from('pontuacao_regras').update({ valor: parseInt(editingValue) }).eq('id', editingRuleId);
+    setEditingRuleId(null); fetchData();
   };
 
   const getGtNameById = (id: number) => gts.find(g => g.id === id)?.gt || `GT ${id}`;
 
-  if (!user) return <div className="flex items-center justify-center h-screen bg-black text-white">Carregando perfil...</div>;
+  if (!user) return <div className="flex items-center justify-center h-screen bg-black text-white">Carregando...</div>;
 
   const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  const years = [2024, 2025, 2026];
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-brand-neon selection:text-black flex">
@@ -631,60 +383,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
           <div className="mt-4 text-[11px] font-black uppercase tracking-[0.4em] text-brand-neon">PAINEL DE GESTÃO</div>
         </div>
 
-        <nav className="flex-1 px-6 space-y-2 mt-6 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-6 space-y-2 mt-6 overflow-y-auto">
           <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 px-4">MENU</div>
-          <button onClick={() => setActiveTab('overview')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'overview' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            <LayoutDashboard size={20} /> Dashboard
-          </button>
-          <button onClick={() => setActiveTab('ranking')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'ranking' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            <Star size={20} /> Ranking
-          </button>
-          <button onClick={() => setActiveTab('members')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'members' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            <Users size={20} /> Membros
-          </button>
-          <button onClick={() => setActiveTab('tasks')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'tasks' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            <ListTodo size={20} /> Tarefas
-          </button>
-          <button onClick={() => setActiveTab('agenda')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'agenda' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            <CalendarRange size={20} /> Agenda
-          </button>
-
-          <div className="pt-8 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 px-4">MINHA ÁREA</div>
-          <button onClick={() => setActiveTab('articles')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'articles' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            <FileText size={20} /> Meus Artigos
-          </button>
-          <button onClick={() => setActiveTab('my_events')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'my_events' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            <Ticket size={20} /> Ingressos
-          </button>
+          {[
+            { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'ranking', label: 'Ranking', icon: Star },
+            { id: 'members', label: 'Membros', icon: Users },
+            { id: 'tasks', label: 'Tarefas', icon: ListTodo },
+            { id: 'agenda', label: 'Agenda', icon: CalendarRange },
+            { id: 'articles', label: 'Meus Artigos', icon: FileText },
+            { id: 'my_events', label: 'Ingressos', icon: Ticket }
+          ].map(item => (
+            <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+              <item.icon size={20} /> {item.label}
+            </button>
+          ))}
           
           {user.governanca && (
             <>
               <div className="pt-8 text-[10px] font-black text-brand-neon uppercase tracking-widest mb-4 px-4">GOVERNANÇA</div>
-              <button onClick={() => setActiveTab('gts_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'gts_manage' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                <Boxes size={20} /> Gestão de GTs
-              </button>
-              <button onClick={() => setActiveTab('articles_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                <CheckSquare size={20} /> Aprovar Artigos
-              </button>
-              <button onClick={() => setActiveTab('gamification')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'gamification' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                <Trophy size={20} /> Gamificação
-              </button>
-              <button onClick={() => setActiveTab('checkin')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === 'checkin' ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                <ScanLine size={20} /> Check-in
-              </button>
+              {[
+                { id: 'gts_manage', label: 'Gestão de GTs', icon: Boxes },
+                { id: 'articles_manage', label: 'Aprovar Artigos', icon: CheckSquare },
+                { id: 'gamification', label: 'Gamificação', icon: Trophy },
+                { id: 'checkin', label: 'Check-in', icon: ScanLine }
+              ].map(item => (
+                <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+                  <item.icon size={20} /> {item.label}
+                </button>
+              ))}
             </>
           )}
         </nav>
 
-        <div className="p-8 border-t border-white/5"><button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black text-red-500 hover:bg-red-500/10 transition-all"><LogOut size={20} /> Sair</button></div>
+        <div className="p-8 border-t border-white/5">
+          <button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black text-red-500 hover:bg-red-500/10 transition-all"><LogOut size={20} /> Sair</button>
+        </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 lg:ml-80 min-h-screen relative bg-[#000]">
         <header className="sticky top-0 z-30 flex items-center justify-between px-10 py-6 bg-black/60 backdrop-blur-2xl border-b border-white/5">
-           <div className="flex items-center gap-4 lg:hidden"><Logo dark className="scale-75" /></div>
-           <div className="hidden lg:block text-slate-400 text-sm font-medium">Seja bem-vindo, <span className="text-white font-black">{user.nome}</span></div>
-           <div className="flex items-center gap-6"><button onClick={onProfileClick} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-300 hover:border-brand-neon transition-all overflow-hidden group">{user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <SearchIcon size={20} className="group-hover:text-brand-neon" />}</button></div>
+           <div className="hidden lg:block text-slate-400 text-sm font-medium">Bem-vindo, <span className="text-white font-black">{user.nome}</span></div>
+           <button onClick={onProfileClick} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+             {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="text-slate-300" />}
+           </button>
         </header>
 
         <div className="p-10 max-w-7xl mx-auto">
@@ -700,256 +442,746 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
           {loading ? (
             <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
               <Loader2 className="animate-spin text-brand-neon" size={48} />
-              <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Sincronizando Ecossistema...</p>
+              <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Sincronizando...</p>
             </div>
           ) : (
             <div className="animate-fade-in-up">
-              {/* Tarefas Tab Content */}
-              {activeTab === 'tasks' && (
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
                 <div className="space-y-12">
-                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-                      <div>
-                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4"><ListTodo className="text-brand-neon" size={40} /> Gestão de Tarefas</h2>
-                        <p className="text-slate-500 mt-2 font-medium">Acompanhe e gerencie as atividades das hélice do Alto Paraopeba.</p>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <div className="bg-white/5 p-1 rounded-2xl border border-white/10 flex">
-                            <button onClick={() => setTaskViewMode('list')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'list' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}><LayoutList size={20} /></button>
-                            <button onClick={() => setTaskViewMode('calendar')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'calendar' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}><Calendar size={20} /></button>
-                        </div>
-                        {user.governanca && (<button onClick={() => setIsAddingTask(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-white transition-all shadow-lg shadow-brand-neon/20"><PlusCircle size={20} /> NOVA TAREFA</button>)}
-                      </div>
-                   </div>
-
-                   {/* Filtros de Tarefa */}
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0a0a0a] border border-white/5 p-6 rounded-[2rem] backdrop-blur-xl">
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest px-1">Grupo de Trabalho</label>
-                        <select 
-                            value={taskFilters.gt}
-                            onChange={(e) => setTaskFilters({...taskFilters, gt: e.target.value === 'all' ? 'all' : parseInt(e.target.value)})}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-300 focus:outline-none focus:border-brand-neon"
-                        >
-                            <option value="all">Todos os GTs</option>
-                            {gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest px-1">Membro Responsável</label>
-                        <select 
-                            value={taskFilters.user}
-                            onChange={(e) => setTaskFilters({...taskFilters, user: e.target.value === 'all' ? 'all' : parseInt(e.target.value)})}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-300 focus:outline-none focus:border-brand-neon"
-                        >
-                            <option value="all">Todos os Membros</option>
-                            {members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                        </select>
-                      </div>
-                   </div>
-
-                   {taskViewMode === 'list' ? (
-                     <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                            <thead className="bg-white/5 border-b border-white/5">
-                                <tr>
-                                <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Tarefa</th>
-                                <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">GT / Contexto</th>
-                                <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Responsável</th>
-                                <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Prazo</th>
-                                <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredTasks.map((task) => (
-                                <tr key={task.id} onClick={() => setSelectedTaskDetail(task)} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer group">
-                                    <td className="px-10 py-8"><p className="font-black text-white text-lg group-hover:text-brand-neon transition-colors">{task.titulo}</p>{task.descricao && <p className="text-sm text-slate-500 font-medium line-clamp-1 mt-1">{task.descricao}</p>}</td>
-                                    <td className="px-10 py-8">{task.gt ? (<span className="bg-brand-neon/10 text-brand-neon px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-brand-neon/20">{task.gt.gt}</span>) : (<span className="text-slate-600 font-bold text-xs uppercase italic">Geral</span>)}</td>
-                                    <td className="px-10 py-8"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">{task.responsavel?.avatar ? <img src={task.responsavel.avatar} className="w-full h-full object-cover" /> : <UserIcon size={14} className="text-slate-700" />}</div><span className="text-sm font-bold text-slate-300">{task.responsavel?.nome || 'Não atribuído'}</span></div></td>
-                                    <td className="px-10 py-8"><div className="flex items-center gap-2 text-slate-400 font-bold text-sm"><CalendarClock size={16} className="text-brand-neon" />{task.prazo ? new Date(task.prazo).toLocaleDateString('pt-BR') : 'Sem prazo'}</div></td>
-                                    <td className="px-10 py-8"><div className={`inline-block px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${task.status === 'Concluído' ? 'text-brand-neon border border-brand-neon/30 bg-brand-neon/5' : task.status === 'Em Andamento' ? 'text-blue-400 border border-blue-400/30 bg-blue-400/5' : 'text-orange-400 border-orange-400/30 bg-orange-400/5'}`}>{task.status}</div></td>
-                                </tr>
-                                ))}
-                                {filteredTasks.length === 0 && (<tr><td colSpan={5} className="px-10 py-32 text-center text-slate-500 font-black uppercase tracking-[0.2em] italic">Nenhuma tarefa encontrada.</td></tr>)}
-                            </tbody>
-                            </table>
-                        </div>
-                     </div>
-                   ) : (
-                    /* Calendar View Enhanced */
-                    <div className="space-y-6">
-                        {/* Calendar Controls */}
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[#0a0a0a] border border-white/5 p-6 rounded-[2rem]">
-                            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl">
-                                <button onClick={() => setCalendarViewType('month')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${calendarViewType === 'month' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>Mês</button>
-                                <button onClick={() => setCalendarViewType('week')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${calendarViewType === 'week' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>Semana</button>
-                                <button onClick={() => setCalendarViewType('day')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${calendarViewType === 'day' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>Dia</button>
-                            </div>
-                            
-                            <div className="flex items-center gap-4">
-                                <button onClick={() => navigateCalendar(-1)} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"><ChevronLeft size={20} /></button>
-                                <h4 className="text-xl font-black text-white min-w-[200px] text-center">
-                                    {calendarViewType === 'month' && `${monthNames[calendarAnchorDate.getMonth()]} ${calendarAnchorDate.getFullYear()}`}
-                                    {calendarViewType === 'week' && `Semana de ${calendarDays[0]?.date.toLocaleDateString('pt-BR')}`}
-                                    {calendarViewType === 'day' && calendarAnchorDate.toLocaleDateString('pt-BR')}
-                                </h4>
-                                <button onClick={() => navigateCalendar(1)} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"><ChevronRightIcon size={20} /></button>
-                            </div>
-
-                            <button onClick={() => setCalendarAnchorDate(new Date())} className="px-6 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all">Hoje</button>
-                        </div>
-
-                        <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] overflow-hidden p-8">
-                            <div className={`grid ${calendarViewType === 'day' ? 'grid-cols-1' : 'grid-cols-7'} gap-px bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}>
-                                {calendarViewType !== 'day' && ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                                    <div key={d} className="bg-white/5 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">{d}</div>
-                                ))}
-                                
-                                {calendarDays.map((day, i) => {
-                                    const dateKey = day.date.toISOString().split('T')[0];
-                                    const dayTasks = tasksByDay[dateKey] || [];
-                                    const isToday = new Date().toISOString().split('T')[0] === dateKey;
-
-                                    return (
-                                        <div 
-                                            key={i} 
-                                            onDragOver={(e) => e.preventDefault()}
-                                            onDrop={(e) => handleDrop(e, day.date)}
-                                            className={`transition-colors hover:bg-white/[0.02] border-r border-b border-white/5 flex flex-col gap-2 
-                                                ${calendarViewType === 'day' ? 'min-h-[400px] p-8' : 'min-h-[140px] p-3'}
-                                                ${!day.currentPeriod ? 'opacity-20 grayscale' : ''}`}
-                                        >
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className={`font-black ${isToday ? 'bg-brand-neon text-black rounded-full flex items-center justify-center' : 'text-slate-600'} 
-                                                    ${calendarViewType === 'day' ? 'text-4xl w-16 h-16' : 'text-sm w-7 h-7'}`}>
-                                                    {day.date.getDate()}
-                                                </span>
-                                                {dayTasks.length > 0 && <span className="text-[10px] font-black text-brand-neon uppercase tracking-tighter">{dayTasks.length} {dayTasks.length === 1 ? 'task' : 'tasks'}</span>}
-                                            </div>
-
-                                            <div className="flex-1 space-y-1.5 overflow-y-auto custom-scrollbar-minimal">
-                                                {dayTasks.map(t => (
-                                                    <button 
-                                                        key={t.id} 
-                                                        draggable
-                                                        onDragStart={(e) => handleDragStart(e, t.id)}
-                                                        onClick={() => setSelectedTaskDetail(t)}
-                                                        className={`w-full text-left rounded-xl font-black uppercase truncate transition-all hover:scale-[1.02] active:scale-95 border cursor-grab active:cursor-grabbing
-                                                            ${calendarViewType === 'day' ? 'p-6 text-sm mb-4' : 'p-2 text-[9px]'}
-                                                            ${t.status === 'Concluído' ? 'bg-brand-neon/10 border-brand-neon/30 text-brand-neon' : t.status === 'Em Andamento' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-orange-500/10 border-orange-500/30 text-orange-400'}`}
-                                                    >
-                                                        {calendarViewType === 'day' && <div className="flex items-center justify-between mb-2"><span className="text-[10px] opacity-50">{t.gt?.gt || 'Geral'}</span><TaskIcon size={16} /></div>}
-                                                        {t.titulo}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div className="bg-gradient-to-br from-brand-neon to-[#00aa68] p-10 rounded-[2.5rem] text-black relative overflow-hidden group">
+                      <Trophy className="absolute -right-6 -bottom-6 opacity-20" size={140} />
+                      <div className="text-xs font-black uppercase tracking-[0.2em] opacity-60 mb-10">InovaPoints</div>
+                      <div className="text-6xl font-black tracking-tighter">{user.pontos || 0}</div>
                     </div>
-                   )}
+                    <div className="bg-[#111] border border-white/5 p-10 rounded-[2.5rem]">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-10">Grupos</div>
+                      <div className="text-6xl font-black tracking-tighter text-white">{user.gts?.length || 0}</div>
+                    </div>
+                    <div className="bg-[#111] border border-white/5 p-10 rounded-[2.5rem]">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-10">Artigos</div>
+                      <div className="text-6xl font-black tracking-tighter text-white">{user.artigos || 0}</div>
+                    </div>
+                    <div className="bg-[#111] border border-white/5 p-10 rounded-[2.5rem]">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-10">Ingressos</div>
+                      <div className="text-6xl font-black tracking-tighter text-white">{myTickets.length}</div>
+                    </div>
+                  </div>
 
-                   {/* Modal Detalhes da Tarefa */}
-                   {selectedTaskDetail && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
-                            <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTaskDetail(null)}></div>
-                            <div className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-10 flex flex-col animate-fade-in-up shadow-[0_0_100px_rgba(0,255,157,0.1)] max-h-[90vh]">
-                                <button onClick={() => setSelectedTaskDetail(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors"><X size={28} /></button>
-                                
-                                <div className="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-10">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border ${selectedTaskDetail.status === 'Concluído' ? 'bg-brand-neon/20 border-brand-neon text-brand-neon' : selectedTaskDetail.status === 'Em Andamento' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-orange-500/20 border-orange-500 text-orange-400'}`}>{selectedTaskDetail.status}</div>
-                                                {selectedTaskDetail.gt && (<span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">• {selectedTaskDetail.gt.gt}</span>)}
-                                            </div>
-                                            <h3 className="text-4xl font-black text-white leading-tight">{selectedTaskDetail.titulo}</h3>
-                                        </div>
-                                        {user.governanca && (<button onClick={() => handleDeleteTask(selectedTaskDetail.id)} className="p-4 bg-red-500/10 text-red-500 rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all shadow-lg hover:shadow-red-500/20" title="Excluir Tarefa"><Trash2 size={20} /></button>)}
-                                    </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-10">
+                       <h3 className="text-2xl font-black mb-8 flex items-center gap-4"><Star className="text-brand-neon" /> Lideranças</h3>
+                       <div className="space-y-4">
+                         {ranking.slice(0, 5).map((u, i) => (
+                           <div key={u.id} className="flex items-center justify-between p-5 bg-white/5 rounded-[1.5rem] border border-white/5">
+                             <div className="flex items-center gap-5">
+                               <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${i === 0 ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>{i + 1}</span>
+                               <span className="font-bold text-white">{u.nome}</span>
+                             </div>
+                             <span className="text-brand-neon font-mono font-black">{u.pontos} pts</span>
+                           </div>
+                         ))}
+                       </div>
+                    </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                        <div className="space-y-8">
-                                            <div className="space-y-4">
-                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] block">Descrição e Contexto</label>
-                                                <div className="bg-white/5 border border-white/5 rounded-2xl p-6 text-slate-300 leading-relaxed font-medium">{selectedTaskDetail.descricao || 'Sem descrição.'}</div>
-                                            </div>
+                    <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-10">
+                       <h3 className="text-2xl font-black mb-8 flex items-center gap-4"><TaskIcon className="text-brand-neon" /> Minhas Tarefas</h3>
+                       <div className="space-y-4">
+                         {mySortedTasks.slice(0, 5).map(task => (
+                           <div key={task.id} onClick={() => setSelectedTaskDetail(task)} className="p-5 bg-white/5 rounded-[1.5rem] border border-white/5 cursor-pointer group">
+                             <h4 className="text-sm font-bold text-white group-hover:text-brand-neon transition-colors line-clamp-1">{task.titulo}</h4>
+                             <div className="flex items-center gap-2 text-[10px] font-bold mt-2">
+                               <CalendarClock size={12} className="text-brand-neon" />
+                               <span className="text-slate-400">{task.prazo ? new Date(task.prazo).toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
+                             </div>
+                           </div>
+                         ))}
+                         {mySortedTasks.length === 0 && <p className="text-slate-600 text-center py-10 font-bold uppercase tracking-widest text-xs italic">Nenhuma pendente.</p>}
+                       </div>
+                    </div>
 
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-8 border-y border-white/5">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">{selectedTaskDetail.responsavel?.avatar ? <img src={selectedTaskDetail.responsavel.avatar} className="w-full h-full object-cover" /> : <UserIcon className="text-slate-700" size={20} />}</div>
-                                                    <div className="flex-1"><span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Responsável</span>{user.governanca ? (<select value={selectedTaskDetail.responsavel_id || ''} onChange={(e) => handleUpdateTaskField(selectedTaskDetail.id, 'responsavel_id', e.target.value ? parseInt(e.target.value) : null)} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-brand-neon"><option value="">Não atribuído</option>{members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select>) : (<p className="font-bold text-white text-sm">{selectedTaskDetail.responsavel?.nome || 'Pendente'}</p>)}</div>
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-neon"><CalendarClock size={20} /></div>
-                                                    <div className="flex-1"><span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Entrega</span>{user.governanca ? (<input type="date" value={selectedTaskDetail.prazo || ''} onChange={(e) => handleUpdateTaskField(selectedTaskDetail.id, 'prazo', e.target.value || null)} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-brand-neon" />) : (<p className="font-bold text-white text-sm">{selectedTaskDetail.prazo ? new Date(selectedTaskDetail.prazo).toLocaleDateString('pt-BR') : 'Sem data'}</p>)}</div>
-                                                </div>
-                                            </div>
+                    <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-10">
+                       <h3 className="text-2xl font-black mb-8 flex items-center gap-4"><CalendarRange className="text-brand-neon" /> Agenda</h3>
+                       <div className="space-y-4">
+                         {events.slice(0, 5).map(evt => (
+                           <div key={evt.id} className="p-5 bg-white/5 rounded-[1.5rem] border border-white/5">
+                             <span className="text-[10px] font-black text-brand-neon uppercase">{evt.tipo}</span>
+                             <h4 className="text-lg font-bold text-white mt-1 line-clamp-1">{evt.titulo}</h4>
+                             <div className="text-slate-500 text-xs mt-3 flex items-center gap-2"><MapPin size={14} /> {evt.local}</div>
+                           </div>
+                         ))}
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                                            {/* Anexos */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] flex items-center gap-2"><Paperclip size={14} /> Anexos</label><button onClick={() => anexoInputRef.current?.click()} disabled={isUploadingAnexo} className="text-[9px] font-black uppercase tracking-widest text-brand-neon hover:underline flex items-center gap-1">{isUploadingAnexo ? <Loader2 size={12} className="animate-spin" /> : <PlusCircle size={12} />}Adicionar</button><input type="file" ref={anexoInputRef} className="hidden" onChange={handleAnexoUpload} /></div>
-                                                <div className="grid grid-cols-1 gap-2">{selectedTaskDetail.anexos?.map((anexo, idx) => (<a key={idx} href={anexo.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-white/10 transition-all group"><span className="text-xs font-bold text-slate-300 truncate max-w-[200px]">{anexo.nome}</span><Download size={16} className="text-slate-500 group-hover:text-brand-neon" /></a>))}{(!selectedTaskDetail.anexos || selectedTaskDetail.anexos.length === 0) && (<p className="text-[10px] text-slate-600 font-bold uppercase italic">Nenhum anexo.</p>)}</div>
-                                            </div>
-                                        </div>
+              {/* Meus Artigos Tab */}
+              {activeTab === 'articles' && (
+                <div className="space-y-12">
+                   <div className="flex justify-between items-end">
+                      <div>
+                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4"><FileText className="text-brand-neon" size={40} /> Meus Artigos</h2>
+                        <p className="text-slate-500 mt-2 font-medium">Compartilhe conhecimento com o ecossistema.</p>
+                      </div>
+                      <button onClick={() => setIsCreatingArticle(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-white transition-all shadow-lg shadow-brand-neon/20"><PlusCircle size={20} /> ESCREVER ARTIGO</button>
+                   </div>
 
-                                        {/* Comentários */}
-                                        <div className="space-y-6 flex flex-col h-full"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] flex items-center gap-2"><MessageSquare size={14} /> Discussão</label><div className="flex-1 min-h-[200px] max-h-[400px] bg-white/[0.02] border border-white/5 rounded-2xl p-4 overflow-y-auto custom-scrollbar space-y-4">{taskComments.map((com) => (<div key={com.id} className="flex gap-3 animate-fade-in-up"><div className="w-8 h-8 rounded-lg bg-black flex-shrink-0 overflow-hidden border border-white/10">{com.autor?.avatar ? <img src={com.autor.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-slate-500">{com.autor?.nome.charAt(0)}</div>}</div><div className="flex-1"><div className="flex items-center justify-between mb-1"><span className="text-[10px] font-black text-brand-neon">{com.autor?.nome}</span><span className="text-[8px] font-bold text-slate-600 uppercase">{new Date(com.created_at).toLocaleString('pt-BR')}</span></div><p className="text-xs text-slate-400 leading-relaxed bg-white/5 p-3 rounded-xl rounded-tl-none border border-white/5">{com.conteudo}</p></div></div>))}{taskComments.length === 0 && (<div className="h-full flex items-center justify-center opacity-20 flex-col gap-2"><MessageSquare size={32} /><span className="text-[10px] font-black uppercase tracking-widest">Sem mensagens</span></div>)}</div><div className="relative mt-auto"><textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Digite uma atualização..." className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 pr-14 text-xs text-white focus:border-brand-neon outline-none resize-none h-20" /><button onClick={handlePostComment} disabled={!newComment.trim()} className="absolute right-3 bottom-3 p-3 bg-brand-neon text-black rounded-xl hover:scale-110 transition-all disabled:opacity-30 disabled:hover:scale-100"><Send size={16} /></button></div></div>
-                                    </div>
-
-                                    <div className="pt-6 border-t border-white/5"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] block mb-3 px-1">Atualizar Status</label><div className="flex gap-2">{['Pendente', 'Em Andamento', 'Concluído'].map(s => (<button key={s} onClick={() => handleUpdateTaskStatus(selectedTaskDetail.id, s)} disabled={!user.governanca && selectedTaskDetail.responsavel_id !== user.id} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedTaskDetail.status === s ? (s === 'Concluído' ? 'bg-brand-neon text-black' : s === 'Em Andamento' ? 'bg-blue-500 text-white' : 'bg-orange-500 text-white') : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}>{s}</button>))}</div></div>
-                                </div>
+                   {isCreatingArticle ? (
+                      <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-12 space-y-8 animate-fade-in-up">
+                         <div className="flex justify-between items-center"><h3 className="text-2xl font-black">Novo Artigo</h3><button onClick={() => setIsCreatingArticle(false)} className="text-slate-500 hover:text-white"><X size={32} /></button></div>
+                         <div className="space-y-6">
+                            <input type="text" placeholder="Título impactante" value={newArticleData.titulo} onChange={(e) => setNewArticleData({...newArticleData, titulo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-2xl font-black outline-none focus:border-brand-neon" />
+                            <input type="text" placeholder="Subtítulo curto" value={newArticleData.subtitulo} onChange={(e) => setNewArticleData({...newArticleData, subtitulo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-slate-400 outline-none focus:border-brand-neon" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                               <div onClick={() => articleCoverInputRef.current?.click()} className="h-64 bg-white/5 border border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-brand-neon group transition-all">
+                                  {newArticleData.capa ? <img src={newArticleData.capa} className="w-full h-full object-cover rounded-[2.5rem]" /> : <><ImageIcon className="text-slate-700 group-hover:text-brand-neon" size={48} /><p className="text-slate-500 mt-4 text-sm font-bold">Capa do Artigo</p></>}
+                                  <input type="file" ref={articleCoverInputRef} className="hidden" onChange={handleArticleCoverUpload} />
+                               </div>
+                               <div className="space-y-4">
+                                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Conteúdo do Artigo (HTML permitido)</label>
+                                  <textarea value={newArticleData.conteudo} onChange={(e) => setNewArticleData({...newArticleData, conteudo: e.target.value})} className="w-full h-52 bg-white/5 border border-white/10 rounded-2xl p-4 outline-none focus:border-brand-neon resize-none font-mono text-sm" placeholder="<p>Seu texto aqui...</p>" />
+                               </div>
                             </div>
-                        </div>
-                   )}
-
-                   {/* Modal Nova Tarefa */}
-                   {isAddingTask && (
-                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
-                        <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setIsAddingTask(false)}></div>
-                        <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-10 flex flex-col animate-fade-in-up shadow-[0_0_100px_rgba(0,255,157,0.1)]">
-                           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
-                              <h3 className="text-3xl font-black text-white flex items-center gap-3"><PlusCircle className="text-brand-neon" /> Nova Tarefa</h3>
-                              <button onClick={() => setIsAddingTask(false)} className="text-slate-500 hover:text-white transition-colors"><X size={32} /></button>
+                         </div>
+                         <div className="flex gap-4 pt-8 border-t border-white/5"><button onClick={handleSaveArticle} disabled={isProcessingAction || !newArticleData.titulo} className="flex-1 bg-brand-neon text-black py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all">PUBLICAR PARA REVISÃO</button></div>
+                      </div>
+                   ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                         {myArticles.map(art => (
+                           <div key={art.id} className="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] overflow-hidden group">
+                              <div className="h-40 bg-slate-900 relative">{art.capa && <img src={art.capa} className="w-full h-full object-cover opacity-60" />}<div className="absolute top-4 left-4 bg-black/60 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest">{art.aprovado ? 'Aprovado' : 'Em Revisão'}</div></div>
+                              <div className="p-8">
+                                <h4 className="text-xl font-black mb-2 line-clamp-1">{art.titulo}</h4>
+                                <p className="text-sm text-slate-500 line-clamp-2 mb-6">{art.subtitulo}</p>
+                                <div className="text-[10px] font-black uppercase text-slate-600 border-t border-white/5 pt-4">{new Date(art.created_at).toLocaleDateString()}</div>
+                              </div>
                            </div>
-
-                           <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2 max-h-[60vh]">
-                              <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Título</label><input type="text" placeholder="O que precisa ser feito?" value={newTaskData.titulo} onChange={(e) => setNewTaskData({...newTaskData, titulo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:border-brand-neon outline-none" /></div>
-                              <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Descrição</label><textarea placeholder="Contexto..." value={newTaskData.descricao} onChange={(e) => setNewTaskData({...newTaskData, descricao: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:border-brand-neon outline-none h-32 resize-none" /></div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Responsável</label><select value={newTaskData.responsavel_id} onChange={(e) => setNewTaskData({...newTaskData, responsavel_id: e.target.value ? parseInt(e.target.value) : undefined})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:border-brand-neon outline-none"><option value="">Selecione...</option>{members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></div><div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">GT</label><select value={newTaskData.gt_id} onChange={(e) => setNewTaskData({...newTaskData, gt_id: e.target.value ? parseInt(e.target.value) : undefined})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:border-brand-neon outline-none"><option value="">Geral</option>{gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}</select></div></div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Prazo</label><input type="date" value={newTaskData.prazo} onChange={(e) => setNewTaskData({...newTaskData, prazo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:border-brand-neon outline-none" /></div><div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Status</label><select value={newTaskData.status} onChange={(e) => setNewTaskData({...newTaskData, status: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:border-brand-neon outline-none"><option value="Pendente">Pendente</option><option value="Em Andamento">Em Andamento</option><option value="Concluído">Concluído</option></select></div></div>
-                           </div>
-
-                           <div className="mt-10 pt-8 border-t border-white/5 flex gap-4"><button onClick={handleCreateTask} disabled={isProcessingAction || !newTaskData.titulo} className="flex-1 bg-brand-neon text-black py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-white transition-all disabled:opacity-50">{isProcessingAction ? <Loader2 className="animate-spin mx-auto" /> : 'CONFIRMAR'}</button><button onClick={() => setIsAddingTask(false)} className="px-8 py-4 bg-white/5 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-400 hover:text-white transition-all">Cancelar</button></div>
-                        </div>
-                     </div>
+                         ))}
+                         {myArticles.length === 0 && <div className="col-span-full py-32 text-center border-2 border-dashed border-white/5 rounded-[3rem] text-slate-500 font-black uppercase tracking-widest">Nenhum artigo ainda.</div>}
+                      </div>
                    )}
                 </div>
               )}
 
-              {/* Rest of Tabs (Agenda, Articles, etc.) remain unchanged */}
+              {/* Agenda Tab */}
               {activeTab === 'agenda' && (
                 <div className="space-y-12">
                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                       <div>
                         <h2 className="text-4xl font-black tracking-tight flex items-center gap-4"><CalendarRange className="text-brand-neon" size={40} /> Próximas Experiências</h2>
-                        <p className="text-slate-500 mt-2 font-medium">Garanta sua participação nos principais eventos do ecossistema.</p>
+                        <p className="text-slate-500 mt-2 font-medium">Participe dos melhores momentos do Alto Paraopeba.</p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-4 bg-white/5 p-4 rounded-[2rem] border border-white/5">
-                        <div className="flex items-center gap-3"><Filter size={16} className="text-brand-neon" /><span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Filtrar por:</span></div>
-                        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-slate-300 focus:outline-none focus:border-brand-neon transition-all cursor-pointer"><option value="all">Todos os Meses</option>{monthNames.map((m, i) => (<option key={i} value={i}>{m}</option>))}</select>
-                        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-slate-300 focus:outline-none focus:border-brand-neon transition-all cursor-pointer"><option value="all">Todos os Anos</option>{years.map(y => (<option key={y} value={y}>{y}</option>))}</select>
+                      <div className="flex gap-4 bg-white/5 p-2 rounded-2xl">
+                        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-transparent text-xs font-black uppercase p-2 focus:outline-none"><option value="all">Mês</option>{monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+                        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-transparent text-xs font-black uppercase p-2 focus:outline-none"><option value="all">Ano</option><option value={2024}>2024</option><option value={2025}>2025</option></select>
                       </div>
                    </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">{prioritizedEvents.map(evt => { const date = new Date(evt.data_inicio); const today = new Date(); today.setHours(0,0,0,0); const daysLeft = Math.ceil((date.getTime() - today.getTime()) / (1000 * 3600 * 24)); const isCurrentMonth = date.getMonth() === new Date().getMonth() && date.getFullYear() === new Date().getFullYear(); const taken = eventStats[evt.id] || 0; const vacanciesLeft = evt.vagas ? Math.max(0, evt.vagas - taken) : 'Ilimitado'; const alreadyInscribed = myTickets.some(t => t.evento_id === evt.id); return (<div key={evt.id} onClick={() => setSelectedEventDetails(evt)} className={`group bg-[#0a0a0a] border rounded-[2.5rem] overflow-hidden transition-all hover:-translate-y-1 cursor-pointer flex flex-col ${isCurrentMonth ? 'border-brand-neon/30 shadow-[0_10px_30px_rgba(0,255,157,0.05)]' : 'border-white/5 hover:border-brand-green/30'}`}><div className="h-48 bg-slate-900 relative">{evt.imagem_capa ? <img src={evt.imagem_capa} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" /> : <div className="w-full h-full flex items-center justify-center bg-brand-green/5"><CalendarDays size={48} className="text-slate-800" /></div>}<div className="absolute inset-x-4 top-4 flex justify-between items-start pointer-events-none"><div className="flex flex-col gap-2 items-start"><span className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase text-brand-neon border border-brand-neon/20">{evt.tipo}</span></div><div className="flex flex-col gap-2 items-end">{alreadyInscribed && (<span className="bg-brand-neon text-black px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1 shadow-xl"><CheckCircle size={10} /> Já inscrito</span>)}{isCurrentMonth && (<div className="bg-brand-neon/90 text-black px-3 py-1 rounded-full text-[9px] font-black uppercase animate-pulse shadow-xl border border-white/10">Destaque do Mês</div>)}</div></div></div><div className="p-8 flex-1 flex flex-col"><div className="flex items-center gap-3 text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3"><div className="w-2 h-2 rounded-full bg-brand-neon"></div><span>{date.toLocaleDateString('pt-BR')} • {date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div><h3 className="text-xl font-black text-white mb-2 line-clamp-1 group-hover:text-brand-neon transition-colors">{evt.titulo}</h3><p className="text-sm text-slate-500 line-clamp-2 mb-6 font-medium leading-relaxed">{evt.descricao}</p><div className="mt-auto grid grid-cols-2 gap-4 pt-6 border-t border-white/5"><div className="flex flex-col"><span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Vagas Livres</span><span className={`text-lg font-black ${vacanciesLeft === 0 ? 'text-grid-cols-2' : 'text-white'}`}>{vacanciesLeft}</span></div><div className="flex flex-col"><span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Status</span><span className="text-lg font-black text-white">{daysLeft === 0 ? 'Hoje' : daysLeft < 0 ? 'Realizado' : `Em ${daysLeft} dias`}</span></div></div></div></div>); })}{prioritizedEvents.length === 0 && (<div className="col-span-full py-32 text-center border-2 border-dashed border-white/5 rounded-[3rem]"><CalendarRange size={64} className="mx-auto text-slate-800 mb-6" /><p className="text-slate-500 font-black uppercase tracking-widest">Nenhum evento encontrado para este período.</p></div>)}</div>
-                   {selectedEventDetails && (<div className="fixed inset-0 z-[100] bg-black flex flex-col animate-fade-in-up"><div className="h-20 border-b border-white/10 flex items-center justify-between px-10 bg-black/80 backdrop-blur-xl"><button onClick={() => setSelectedEventDetails(null)} className="flex items-center gap-3 text-slate-400 hover:text-white transition-colors uppercase font-black text-xs tracking-widest"><ArrowLeft size={20} /> Voltar à Agenda</button>{!myTickets.some(t => t.evento_id === selectedEventDetails.id) ? (<button onClick={() => handleWithdrawTicket(selectedEventDetails)} disabled={isProcessingAction || (selectedEventDetails.vagas && (eventStats[selectedEventDetails.id] || 0) >= selectedEventDetails.vagas)} className="bg-brand-neon text-black px-10 py-3 rounded-xl font-black flex items-center gap-2 hover:bg-white transition-all shadow-lg shadow-brand-neon/20 disabled:opacity-50">{isProcessingAction ? <Loader2 className="animate-spin" size={20} /> : <Ticket size={20} />}RETIRAR MEU INGRESSO</button>) : (<div className="bg-brand-green/20 text-brand-neon px-8 py-3 rounded-xl font-black text-xs border border-brand-green/30 flex items-center gap-2"><CheckCircle size={18} /> INSCRIÇÃO CONFIRMADA</div>)}</div><div className="flex-1 overflow-y-auto custom-scrollbar p-10 md:p-20"><div className="max-w-4xl mx-auto space-y-12"><div className="space-y-6"><span className="text-brand-neon font-black uppercase tracking-[0.3em] text-sm">{selectedEventDetails.tipo} EXCLUSIVO</span><h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-none">{selectedEventDetails.titulo}</h1><div className="flex flex-wrap gap-8 py-6"><div className="flex items-center gap-4"><div className="p-3 bg-white/5 rounded-2xl text-brand-neon"><CalendarRange size={24} /></div><div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Data e Hora</div><div className="font-bold text-white">{new Date(selectedEventDetails.data_inicio).toLocaleDateString('pt-BR')} às {new Date(selectedEventDetails.data_inicio).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</div></div></div><div className="flex items-center gap-4"><div className="p-3 bg-white/5 rounded-2xl text-brand-neon"><MapPin size={24} /></div><div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Localização</div><div className="font-bold text-white">{selectedEventDetails.local}</div></div></div><div className="flex items-center gap-4"><div className="p-3 bg-white/5 rounded-2xl text-brand-neon"><UsersIcon size={24} /></div><div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Capacidade</div><div className="font-bold text-white">{selectedEventDetails.vagas || 'Ilimitada'} vagas totais</div></div></div></div></div><div className="w-full h-[400px] rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl relative">{selectedEventDetails.imagem_capa ? <img src={selectedEventDetails.imagem_capa} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-slate-900 flex items-center justify-center text-slate-800"><CalendarDays size={100} /></div>}{selectedEventDetails.exclusivo && (<div className="absolute top-10 right-10 bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 font-black text-xs uppercase tracking-widest flex items-center gap-2"><Lock size={16} className="text-brand-neon" /> Evento Fechado</div>)}</div><div className="prose prose-invert prose-lg max-w-none"><h2 className="text-2xl font-black text-white">Sobre o Evento</h2><p className="text-slate-300 leading-[1.8] font-medium whitespace-pre-line">{selectedEventDetails.descricao}</p></div><div className="bg-brand-neon/5 border border-brand-neon/20 rounded-[2.5rem] p-10 flex flex-col md:flex-row items-center justify-between gap-8"><div><h4 className="text-xl font-black text-white">Pronto para inovar?</h4><p className="text-slate-400 font-medium mt-1">Ao retirar o ingresso, seu QR Code de acesso será gerado automaticamente.</p></div>{!myTickets.some(t => t.evento_id === selectedEventDetails.id) && (<button onClick={() => handleWithdrawTicket(selectedEventDetails)} disabled={isProcessingAction || (selectedEventDetails.vagas && (eventStats[selectedEventDetails.id] || 0) >= selectedEventDetails.vagas)} className="bg-brand-neon text-black px-12 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all disabled:opacity-50">GARANTIR MINHA VAGA</button>)}</div></div></div></div>)}
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {prioritizedEvents.map(evt => {
+                        const isInscribed = myTickets.some(t => t.evento_id === evt.id);
+                        return (
+                          <div key={evt.id} onClick={() => setSelectedEventDetails(evt)} className="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] overflow-hidden hover:border-brand-neon/30 transition-all cursor-pointer group">
+                             <div className="h-44 bg-slate-900 relative">
+                               {evt.imagem_capa && <img src={evt.imagem_capa} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />}
+                               <div className="absolute top-4 left-4 flex gap-2">
+                                  <span className="bg-black/60 px-3 py-1 rounded-full text-[8px] font-black uppercase text-brand-neon">{evt.tipo}</span>
+                                  {isInscribed && <span className="bg-brand-neon text-black px-3 py-1 rounded-full text-[8px] font-black uppercase">Confirmado</span>}
+                               </div>
+                             </div>
+                             <div className="p-8">
+                                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{new Date(evt.data_inicio).toLocaleDateString()} • {evt.local}</div>
+                                <h3 className="text-xl font-black mb-4 group-hover:text-brand-neon transition-colors">{evt.titulo}</h3>
+                                <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                                   <span className="text-[9px] font-black uppercase text-slate-600">{evt.vagas ? `${(eventStats[evt.id] || 0)}/${evt.vagas} vagas` : 'Aberto'}</span>
+                                   <span className="text-brand-neon font-black text-[10px] uppercase">Detalhes <ArrowRight size={14} className="inline ml-1" /></span>
+                                </div>
+                             </div>
+                          </div>
+                        )
+                      })}
+                   </div>
+
+                   {selectedEventDetails && (
+                     <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-fade-in-up">
+                        <div className="h-20 border-b border-white/10 flex items-center justify-between px-10 bg-black/80 backdrop-blur-xl">
+                          <button onClick={() => setSelectedEventDetails(null)} className="flex items-center gap-3 text-slate-400 hover:text-white uppercase font-black text-xs tracking-widest"><ArrowLeft size={20} /> Voltar</button>
+                          {!myTickets.some(t => t.evento_id === selectedEventDetails.id) && (
+                            <button onClick={() => handleWithdrawTicket(selectedEventDetails)} className="bg-brand-neon text-black px-8 py-3 rounded-xl font-black flex items-center gap-2 hover:bg-white transition-all shadow-lg"><Ticket size={20} /> RETIRAR INGRESSO</button>
+                          )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-10 md:p-20">
+                          <div className="max-w-4xl mx-auto space-y-12">
+                             <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-none">{selectedEventDetails.titulo}</h1>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                <div className="prose prose-invert prose-lg max-w-none"><p className="text-slate-300 leading-relaxed">{selectedEventDetails.descricao}</p></div>
+                                <div className="bg-white/5 p-10 rounded-[2.5rem] space-y-6">
+                                   <div><label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-2">Localização</label><p className="font-bold text-xl">{selectedEventDetails.local}</p></div>
+                                   <div><label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-2">Data e Hora</label><p className="font-bold text-xl">{new Date(selectedEventDetails.data_inicio).toLocaleString()}</p></div>
+                                </div>
+                             </div>
+                          </div>
+                        </div>
+                     </div>
+                   )}
                 </div>
               )}
 
-              {/* Rest of Tabs (ranking, members, etc.) remain unchanged */}
+              {/* Ingressos Tab */}
+              {activeTab === 'my_events' && (
+                <div className="space-y-12">
+                   <h2 className="text-4xl font-black tracking-tight flex items-center gap-4"><Ticket className="text-brand-neon" size={40} /> Meus Ingressos</h2>
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {myTickets.map(ticket => (
+                        <div key={ticket.id} onClick={() => setSelectedTicketForQr(ticket)} className="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-8 hover:border-brand-neon cursor-pointer transition-all">
+                           <div className="flex justify-between items-center mb-6"><div className="bg-brand-neon/10 text-brand-neon px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest">{ticket.status === 'checkin_realizado' ? 'Check-in OK' : 'Confirmado'}</div><QrIcon size={20} className="text-slate-700" /></div>
+                           <h3 className="text-2xl font-black mb-2">{ticket.evento?.titulo}</h3>
+                           <p className="text-slate-500 text-xs mb-8">{ticket.evento?.local}</p>
+                           <div className="pt-6 border-t border-white/5 flex items-center gap-2 text-brand-neon font-black text-[10px] uppercase tracking-widest">Exibir QR Code <ArrowRight size={14} /></div>
+                        </div>
+                      ))}
+                      {myTickets.length === 0 && <div className="col-span-full py-32 text-center border-2 border-dashed border-white/5 rounded-[3rem] text-slate-500 font-black uppercase tracking-widest">Sem ingressos.</div>}
+                   </div>
+
+                   {selectedTicketForQr && (
+                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
+                        <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTicketForQr(null)}></div>
+                        <div className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-10 flex flex-col items-center animate-fade-in-up">
+                           <button onClick={() => setSelectedTicketForQr(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><X size={28} /></button>
+                           <h3 className="text-3xl font-black text-center mb-10">{selectedTicketForQr.evento?.titulo}</h3>
+                           <div className="bg-white p-6 rounded-[2.5rem] mb-10"><QRCode value={selectedTicketForQr.id} size={250} /></div>
+                           <p className="text-slate-500 text-center text-sm font-medium">Apresente este código no check-in do evento.</p>
+                        </div>
+                     </div>
+                   )}
+                </div>
+              )}
+
+              {/* Tasks Tab */}
+              {activeTab === 'tasks' && (
+                <div className="space-y-12">
+                   <div className="flex justify-between items-end gap-8">
+                      <div>
+                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4"><ListTodo className="text-brand-neon" size={40} /> Gestão de Tarefas</h2>
+                        <p className="text-slate-500 mt-2 font-medium">Hélices do Alto Paraopeba em ação.</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="bg-white/5 p-1 rounded-2xl border border-white/10 flex">
+                            <button onClick={() => setTaskViewMode('list')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'list' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}><LayoutList size={20} /></button>
+                            <button onClick={() => setTaskViewMode('calendar')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'calendar' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}><Calendar size={20} /></button>
+                        </div>
+                        {user.governanca && (<button onClick={() => setIsAddingTask(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-white transition-all shadow-lg"><PlusCircle size={20} /> NOVA TAREFA</button>)}
+                      </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0a0a0a] border border-white/5 p-6 rounded-[2rem]">
+                      <div className="space-y-2"><label className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Filtrar GT</label><select value={taskFilters.gt} onChange={(e) => setTaskFilters({...taskFilters, gt: e.target.value === 'all' ? 'all' : parseInt(e.target.value)})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"><option value="all">Todos</option>{gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}</select></div>
+                      <div className="space-y-2"><label className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Filtrar Responsável</label><select value={taskFilters.user} onChange={(e) => setTaskFilters({...taskFilters, user: e.target.value === 'all' ? 'all' : parseInt(e.target.value)})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"><option value="all">Todos</option>{members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></div>
+                   </div>
+
+                   {taskViewMode === 'list' ? (
+                     <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] overflow-hidden">
+                        <table className="w-full text-left">
+                          <thead className="bg-white/5 border-b border-white/5">
+                              <tr><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Tarefa</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Status</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Prazo</th></tr>
+                          </thead>
+                          <tbody>
+                              {filteredTasks.map(t => (
+                                <tr key={t.id} onClick={() => setSelectedTaskDetail(t)} className="border-b border-white/5 hover:bg-white/[0.02] cursor-pointer group">
+                                    <td className="px-10 py-8"><p className="font-black text-white text-lg group-hover:text-brand-neon transition-colors">{t.titulo}</p><p className="text-xs text-slate-500 mt-1">{t.gt?.gt || 'Geral'}</p></td>
+                                    <td className="px-10 py-8"><div className={`inline-block px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${t.status === 'Concluído' ? 'text-brand-neon border border-brand-neon/30 bg-brand-neon/5' : 'text-orange-400 border-orange-400/30'}`}>{t.status}</div></td>
+                                    <td className="px-10 py-8 text-slate-400 font-bold text-sm">{t.prazo ? new Date(t.prazo).toLocaleDateString() : '-'}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                     </div>
+                   ) : (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between gap-4 bg-[#0a0a0a] border border-white/5 p-6 rounded-[2rem]">
+                            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl">
+                                <button onClick={() => setCalendarViewType('month')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${calendarViewType === 'month' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>Mês</button>
+                                <button onClick={() => setCalendarViewType('week')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${calendarViewType === 'week' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>Semana</button>
+                                <button onClick={() => setCalendarViewType('day')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${calendarViewType === 'day' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>Dia</button>
+                            </div>
+                            <div className="flex items-center gap-4"><button onClick={() => navigateCalendar(-1)} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"><ChevronLeft size={20} /></button><h4 className="text-xl font-black text-white min-w-[200px] text-center">{calendarAnchorDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h4><button onClick={() => navigateCalendar(1)} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"><ChevronRightIcon size={20} /></button></div>
+                            <button onClick={() => setCalendarAnchorDate(new Date())} className="px-6 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase">Hoje</button>
+                        </div>
+                        <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] overflow-hidden p-8">
+                            <div className={`grid ${calendarViewType === 'day' ? 'grid-cols-1' : 'grid-cols-7'} gap-px bg-white/10 rounded-2xl overflow-hidden`}>
+                                {calendarDays.map((day, i) => {
+                                    const key = day.date.toISOString().split('T')[0];
+                                    const dayTasks = tasksByDay[key] || [];
+                                    return (
+                                        <div key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, day.date)} className={`min-h-[140px] p-4 border-white/5 border bg-[#0a0a0a] ${!day.currentPeriod ? 'opacity-20' : ''}`}>
+                                            <div className="text-xs font-black text-slate-600 mb-2">{day.date.getDate()}</div>
+                                            <div className="space-y-1">
+                                                {dayTasks.map(t => (
+                                                    <div key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData("taskId", t.id.toString())} onClick={() => setSelectedTaskDetail(t)} className={`text-[8px] p-1.5 rounded bg-brand-neon/10 text-brand-neon border border-brand-neon/20 font-black cursor-pointer truncate`}>{t.titulo}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                   )}
+                </div>
+              )}
+
+              {/* Modal Detalhes Tarefa */}
+              {selectedTaskDetail && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
+                  <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTaskDetail(null)}></div>
+                  <div className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-10 max-h-[90vh] overflow-y-auto">
+                    <button onClick={() => setSelectedTaskDetail(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><X size={32} /></button>
+                    <div className="space-y-10">
+                       <div><h3 className="text-4xl font-black text-white">{selectedTaskDetail.titulo}</h3><p className="text-slate-500 mt-2">{selectedTaskDetail.descricao || 'Sem descrição.'}</p></div>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                          <div className="space-y-6">
+                             <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center"><UserIcon size={20} /></div><div><label className="text-[9px] font-black text-slate-500 uppercase">Responsável</label><p className="font-bold text-white">{selectedTaskDetail.responsavel?.nome || 'Ninguém'}</p></div></div>
+                             <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-brand-neon"><CalendarClock size={20} /></div><div><label className="text-[9px] font-black text-slate-500 uppercase">Entrega</label><p className="font-bold text-white">{selectedTaskDetail.prazo ? new Date(selectedTaskDetail.prazo).toLocaleDateString() : 'A definir'}</p></div></div>
+                             <div className="pt-6 border-t border-white/5">
+                               <label className="text-[10px] font-black uppercase text-slate-500 block mb-4">Atualizar Status</label>
+                               <div className="flex gap-2">
+                                 {/* Fix: Using handleUpdateTaskField to update status since handleUpdateTaskStatus was missing */}
+                                 {['Pendente', 'Em Andamento', 'Concluído'].map(s => (
+                                   <button 
+                                     key={s} 
+                                     onClick={() => handleUpdateTaskField(selectedTaskDetail.id, 'status', s)} 
+                                     className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${selectedTaskDetail.status === s ? 'bg-brand-neon text-black' : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
+                                   >
+                                     {s}
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+                          </div>
+                          <div className="space-y-6">
+                             <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2"><MessageSquare size={14} /> Discussão</label>
+                             <div className="h-[250px] bg-white/[0.02] border border-white/5 rounded-2xl p-4 overflow-y-auto space-y-4">{taskComments.map(c => <div key={c.id} className="text-xs"><span className="font-black text-brand-neon block mb-1">{c.autor?.nome}</span><p className="bg-white/5 p-3 rounded-xl rounded-tl-none">{c.conteudo}</p></div>)}</div>
+                             <div className="relative"><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handlePostComment()} placeholder="Escreva..." className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs pr-12" /><button onClick={handlePostComment} className="absolute right-4 top-4 text-brand-neon"><Send size={16} /></button></div>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Nova Tarefa */}
+              {isAddingTask && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
+                  <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setIsAddingTask(false)}></div>
+                  <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-10">
+                    <button onClick={() => setIsAddingTask(false)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><X size={32} /></button>
+                    <h3 className="text-3xl font-black mb-10">Nova Tarefa</h3>
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Título da Atividade</label>
+                        <input type="text" value={newTaskData.titulo} onChange={(e) => setNewTaskData({...newTaskData, titulo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-brand-neon" placeholder="Ex: Organizar Meetup Mensal" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">GT Responsável</label>
+                          <select value={newTaskData.gt_id} onChange={(e) => setNewTaskData({...newTaskData, gt_id: parseInt(e.target.value)})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-brand-neon">
+                            <option value="">Selecione o GT</option>
+                            {gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Membro Responsável</label>
+                          <select value={newTaskData.responsavel_id} onChange={(e) => setNewTaskData({...newTaskData, responsavel_id: parseInt(e.target.value)})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-brand-neon">
+                            <option value="">Selecione o Membro</option>
+                            {members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Prazo de Entrega</label>
+                        <input type="date" value={newTaskData.prazo} onChange={(e) => setNewTaskData({...newTaskData, prazo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-brand-neon" />
+                      </div>
+                      <button onClick={handleCreateTask} disabled={isProcessingAction} className="w-full bg-brand-neon text-black py-5 rounded-2xl font-black shadow-xl hover:scale-105 transition-all mt-6">CRIAR TAREFA</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Gamification Tab Content */}
+              {activeTab === 'gamification' && (
+                <div className="space-y-12">
+                   <h2 className="text-4xl font-black tracking-tight flex items-center gap-4">
+                     <Trophy className="text-brand-neon" size={40} /> Gamificação e Score
+                   </h2>
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                      <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-12">
+                        <h3 className="text-2xl font-black mb-8 flex items-center gap-4"><Settings size={24} className="text-brand-neon" /> Regras de Pontuação</h3>
+                        <div className="space-y-4">
+                          {rules.map(rule => (
+                            <div key={rule.id} className="flex items-center justify-between p-6 bg-white/5 rounded-[1.5rem] border border-white/5 group relative overflow-hidden">
+                               <span className="font-bold text-slate-300 text-lg">{rule.acao}</span>
+                               <div className="flex items-center gap-3 relative z-10">
+                                 {editingRuleId === rule.id ? (
+                                   <div className="flex items-center gap-2 animate-fade-in-up">
+                                      <input 
+                                        type="number" 
+                                        value={editingValue} 
+                                        onChange={(e) => setEditingValue(e.target.value)}
+                                        className="w-20 bg-black/50 border border-brand-neon/50 rounded-lg px-2 py-1 text-center font-mono font-black text-brand-neon focus:outline-none focus:ring-1 focus:ring-brand-neon"
+                                        autoFocus
+                                      />
+                                      <button onClick={handleSaveRule} className="p-2 bg-brand-neon text-black rounded-lg hover:scale-110 transition-transform">
+                                        <Save size={16} />
+                                      </button>
+                                      <button onClick={() => setEditingRuleId(null)} className="p-2 bg-red-500/20 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all">
+                                        <X size={16} />
+                                      </button>
+                                   </div>
+                                 ) : (
+                                   <>
+                                     <span className="bg-brand-neon/10 text-brand-neon px-5 py-2 rounded-xl font-mono font-black text-xl border border-brand-neon/20">+{rule.valor}</span>
+                                     {user.governanca && (
+                                       <button 
+                                        onClick={() => handleEditRule(rule)} 
+                                        className="p-2 text-slate-500 hover:text-brand-neon transition-colors opacity-0 group-hover:opacity-100"
+                                       >
+                                         <Edit3 size={18} />
+                                       </button>
+                                     )}
+                                   </>
+                                 )}
+                               </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-12">
+                        <h3 className="text-2xl font-black mb-8 flex items-center gap-4"><History size={24} className="text-brand-neon" /> Extrato de Atividades</h3>
+                        <div className="space-y-4">
+                          {logs.map(log => (
+                            <div key={log.id} className="p-5 bg-white/5 rounded-[1.5rem] border border-white/5 flex items-center justify-between">
+                               <div>
+                                 <p className="text-sm font-black text-white uppercase tracking-wider">{log.motivo || 'Atribuição Automática'}</p>
+                                 <span className="text-[10px] text-slate-500 font-bold">{new Date(log.created_at).toLocaleString('pt-BR')}</span>
+                               </div>
+                               <span className="text-brand-green font-black text-xl">+{log.pontos_atribuidos}</span>
+                            </div>
+                          ))}
+                          {logs.length === 0 && <p className="text-slate-500 text-center py-10 font-bold">Nenhuma atividade pontuada ainda.</p>}
+                        </div>
+                      </div>
+                   </div>
+                </div>
+              )}
+
+              {/* Gestão de Artigos Tab (Admin) */}
+              {activeTab === 'articles_manage' && user.governanca && (
+                <div className="space-y-12">
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4">
+                        <CheckSquare className="text-brand-neon" size={40} /> Curadoria de Conteúdo
+                      </h2>
+                      <p className="text-slate-500 mt-2 font-medium">Valide o conhecimento que entra no ecossistema.</p>
+                    </div>
+                    <div className="flex gap-2 bg-white/5 p-1 rounded-2xl border border-white/10">
+                      <button 
+                        onClick={() => setArticleFilter('pending')} 
+                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${articleFilter === 'pending' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}
+                      >
+                        Pendentes ({articlesInReview.length})
+                      </button>
+                      <button 
+                        onClick={() => setArticleFilter('active')} 
+                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${articleFilter === 'active' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}
+                      >
+                        Ativos ({activeArticles.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-white/5 border-b border-white/5">
+                        <tr>
+                          <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Artigo</th>
+                          <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredArticlesForManage.map(art => (
+                          <tr key={art.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                            <td className="px-10 py-8">
+                              <div className="flex items-center gap-6">
+                                <div className="w-20 h-12 bg-slate-900 rounded-lg overflow-hidden border border-white/5 flex-shrink-0">
+                                  {art.capa ? <img src={art.capa} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-slate-700" /></div>}
+                                </div>
+                                <div>
+                                  <h4 className="font-black text-white text-lg">{art.titulo}</h4>
+                                  <p className="text-xs text-slate-500 font-medium">Por ID: {art.autor.substring(0,8)}... • {new Date(art.created_at).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-10 py-8 text-right">
+                              <div className="flex justify-end gap-3">
+                                <button 
+                                  onClick={() => setSelectedArticleForReview(art)}
+                                  className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all"
+                                  title="Visualizar Conteúdo"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                                {!art.aprovado && (
+                                  <button 
+                                    onClick={() => handleApproveArticle(art.id)}
+                                    disabled={isProcessingAction}
+                                    className="px-6 py-2 bg-brand-neon text-black rounded-xl text-[10px] font-black uppercase hover:scale-105 transition-all shadow-lg shadow-brand-neon/20"
+                                  >
+                                    Aprovar
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredArticlesForManage.length === 0 && (
+                          <tr>
+                            <td colSpan={2} className="px-10 py-20 text-center text-slate-600 font-black uppercase tracking-[0.2em] text-xs italic">
+                              Nenhum artigo encontrado nesta categoria.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Modal de Revisão */}
+                  {selectedArticleForReview && (
+                    <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-fade-in-up">
+                      <div className="h-20 border-b border-white/10 flex items-center justify-between px-10 bg-black/80 backdrop-blur-xl">
+                        <button onClick={() => setSelectedArticleForReview(null)} className="flex items-center gap-3 text-slate-400 hover:text-white uppercase font-black text-xs tracking-widest">
+                          <ArrowLeft size={20} /> Fechar
+                        </button>
+                        {!selectedArticleForReview.aprovado && (
+                          <button 
+                            onClick={() => handleApproveArticle(selectedArticleForReview.id)}
+                            disabled={isProcessingAction}
+                            className="bg-brand-neon text-black px-8 py-3 rounded-xl font-black flex items-center gap-2 hover:bg-white transition-all shadow-lg"
+                          >
+                            <CheckCircle size={20} /> APROVAR AGORA
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-10 md:p-20">
+                        <div className="max-w-4xl mx-auto space-y-12">
+                          <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-none">{selectedArticleForReview.titulo}</h1>
+                          <p className="text-2xl text-slate-400 font-medium">{selectedArticleForReview.subtitulo}</p>
+                          {selectedArticleForReview.capa && (
+                            <div className="w-full h-[400px] rounded-[3rem] overflow-hidden border border-white/10">
+                              <img src={selectedArticleForReview.capa} className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                          <div className="prose prose-invert prose-lg max-w-none">
+                            <div dangerouslySetInnerHTML={{ __html: selectedArticleForReview.conteudo }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Gestão GTs */}
+              {activeTab === 'gts_manage' && user.governanca && (
+                <div className="space-y-12">
+                   <div className="flex justify-between items-center"><h2 className="text-4xl font-black flex items-center gap-4"><Boxes className="text-brand-neon" size={40} /> Gestão de GTs</h2><button onClick={() => setIsAddingGt(true)} className="bg-brand-neon text-black px-6 py-3 rounded-xl font-black">NOVO GT</button></div>
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {gts.map(gt => (
+                        <div key={gt.id} onClick={() => setSelectedGtForManagement(gt)} className="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-10 hover:border-brand-neon cursor-pointer transition-all">
+                           <div className="w-12 h-12 bg-brand-neon/10 rounded-xl flex items-center justify-center text-brand-neon mb-6"><Boxes size={24} /></div>
+                           <h3 className="text-2xl font-black">{gt.gt}</h3>
+                           <p className="text-slate-500 text-sm mt-2">Clique para gerenciar membros.</p>
+                        </div>
+                      ))}
+                   </div>
+
+                   {/* Modal Novo GT */}
+                   {isAddingGt && (
+                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
+                        <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setIsAddingGt(false)}></div>
+                        <div className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-10">
+                           <button onClick={() => setIsAddingGt(false)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><X size={32} /></button>
+                           <h3 className="text-3xl font-black mb-10">Novo GT</h3>
+                           <div className="space-y-6">
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Nome do Grupo de Trabalho</label>
+                                 <input type="text" value={newGtName} onChange={(e) => setNewGtName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-brand-neon" placeholder="Ex: GT de Inteligência Artificial" />
+                              </div>
+                              <button onClick={handleCreateGt} disabled={!newGtName.trim()} className="w-full bg-brand-neon text-black py-5 rounded-2xl font-black shadow-xl hover:scale-105 transition-all">CRIAR GRUPO</button>
+                           </div>
+                        </div>
+                     </div>
+                   )}
+
+                   {/* Modal Gerenciar GT Específico */}
+                   {selectedGtForManagement && (
+                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
+                        <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setSelectedGtForManagement(null)}></div>
+                        <div className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-12 max-h-[90vh] overflow-y-auto">
+                           <button onClick={() => setSelectedGtForManagement(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><X size={32} /></button>
+                           <div className="flex items-center gap-6 mb-12">
+                              <div className="w-20 h-20 bg-brand-neon/10 rounded-3xl flex items-center justify-center text-brand-neon border border-brand-neon/20"><Boxes size={40} /></div>
+                              <div>
+                                 <h3 className="text-4xl font-black text-white">{selectedGtForManagement.gt}</h3>
+                                 <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Gerenciamento de Membros e Projetos</p>
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                              <div className="space-y-8">
+                                 <h4 className="text-xl font-black flex items-center gap-3"><Users2 className="text-brand-neon" /> Membros Ativos</h4>
+                                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
+                                    {members.filter(m => m.gts?.includes(selectedGtForManagement.id)).map(member => (
+                                       <div key={member.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 group">
+                                          <div className="flex items-center gap-4">
+                                             <div className="w-10 h-10 rounded-xl bg-black border border-white/10 overflow-hidden">
+                                                {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={16} className="m-auto mt-3 text-slate-600" />}
+                                             </div>
+                                             <span className="font-bold text-sm text-white">{member.nome}</span>
+                                          </div>
+                                          <button onClick={() => handleRemoveMemberFromGt(member)} className="p-2 text-slate-500 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><UserMinus size={18} /></button>
+                                       </div>
+                                    ))}
+                                    {members.filter(m => m.gts?.includes(selectedGtForManagement.id)).length === 0 && (
+                                       <p className="text-slate-600 italic text-sm py-10 text-center">Nenhum membro vinculado a este GT.</p>
+                                    )}
+                                 </div>
+                              </div>
+
+                              <div className="space-y-8">
+                                 <h4 className="text-xl font-black flex items-center gap-3"><PlusCircle className="text-brand-neon" /> Adicionar Membro</h4>
+                                 <div className="space-y-4">
+                                    <p className="text-xs text-slate-500">Selecione um membro da comunidade para vincular a este grupo.</p>
+                                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
+                                       {members.filter(m => !m.gts?.includes(selectedGtForManagement.id)).map(member => (
+                                          <button key={member.id} onClick={() => handleAddMemberToGt(member)} className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-brand-neon/50 hover:bg-brand-neon/5 transition-all text-left">
+                                             <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-black border border-white/10 overflow-hidden">
+                                                   {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={16} className="m-auto mt-3 text-slate-600" />}
+                                                </div>
+                                                <div>
+                                                   <span className="font-bold text-sm text-white block">{member.nome}</span>
+                                                   <span className="text-[9px] text-slate-500 uppercase tracking-widest">{member.email}</span>
+                                                </div>
+                                             </div>
+                                             <ArrowRight size={16} className="text-brand-neon" />
+                                          </button>
+                                       ))}
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                   )}
+                </div>
+              )}
+
+              {/* Check-in Tab */}
+              {activeTab === 'checkin' && user.governanca && (
+                <div className="space-y-12">
+                   <div className="flex justify-between items-end gap-8">
+                      <div>
+                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4">
+                          <ScanLine className="text-brand-neon" size={40} /> Controle de Check-in
+                        </h2>
+                        <p className="text-slate-500 mt-2 font-medium">Valide a presença dos membros nos eventos oficiais.</p>
+                      </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                      <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-12 flex flex-col items-center justify-center min-h-[500px]">
+                         {!isScanning ? (
+                           <div className="text-center space-y-8 animate-fade-in-up">
+                              <div className="w-24 h-24 bg-brand-neon/10 rounded-3xl flex items-center justify-center text-brand-neon mx-auto mb-6">
+                                 <QrIcon size={48} />
+                              </div>
+                              <h3 className="text-2xl font-black">Pronto para escanear?</h3>
+                              <p className="text-slate-500 max-w-xs mx-auto">Posicione o QR Code do ingresso do membro em frente à câmera para validar a entrada.</p>
+                              <button 
+                                onClick={startScanner}
+                                className="bg-brand-neon text-black px-12 py-5 rounded-2xl font-black shadow-[0_20px_40px_rgba(0,255,157,0.2)] hover:scale-105 transition-all flex items-center gap-3 mx-auto"
+                              >
+                                <CameraIcon size={24} /> INICIAR CÂMERA
+                              </button>
+                           </div>
+                         ) : (
+                           <div className="w-full space-y-6 animate-fade-in-up">
+                              <div id="reader" className="overflow-hidden rounded-[2rem] border-2 border-brand-neon/30 bg-black aspect-square max-w-sm mx-auto"></div>
+                              <button 
+                                onClick={stopScanner}
+                                className="w-full max-w-sm mx-auto bg-red-500/10 text-red-500 border border-red-500/20 py-4 rounded-xl font-black hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                              >
+                                <X size={20} /> PARAR SCANNER
+                              </button>
+                           </div>
+                         )}
+                      </div>
+
+                      <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-12">
+                         <h3 className="text-2xl font-black mb-8 flex items-center gap-4">
+                           <History size={24} className="text-brand-neon" /> Check-ins Recentes
+                         </h3>
+                         <div className="space-y-4">
+                            <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-[2rem]">
+                               <CheckCircle size={32} className="mx-auto text-slate-700 mb-4" />
+                               <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Os check-ins validados aparecerão aqui em tempo real.</p>
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+              )}
+
+              {/* Ranking Tab */}
+              {activeTab === 'ranking' && (
+                <div className="space-y-8">
+                  <h2 className="text-4xl font-black tracking-tight">Ranking do Ecossistema</h2>
+                  <div className="bg-[#0a0a0a] border border-white/5 rounded-[3rem] overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-white/5 border-b border-white/5">
+                        <tr><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Posição</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Membro</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right">Impacto (Pts)</th></tr>
+                      </thead>
+                      <tbody>
+                        {ranking.map((u, i) => (
+                          <tr key={u.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="px-10 py-8"><span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${i === 0 ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>{i + 1}</span></td>
+                            <td className="px-10 py-8"><div className="flex items-center gap-5"><div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden border border-white/10">{u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : <Users size={20} />}</div><span className="font-black text-white">{u.nome}</span></div></td>
+                            <td className="px-10 py-8 text-right font-mono font-black text-brand-neon text-2xl">{u.pontos}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Membros Tab */}
+              {activeTab === 'members' && (
+                <div className="space-y-8">
+                  <h2 className="text-4xl font-black tracking-tight">Comunidade INOVAP</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {members.map(m => (
+                      <div key={m.id} className="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-8 flex items-center gap-6 group hover:border-brand-neon transition-all">
+                        <div className="w-20 h-20 rounded-2xl bg-black border border-white/10 flex items-center justify-center overflow-hidden">{m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <Users size={32} className="text-slate-800" />}</div>
+                        <div className="flex-1"><h4 className="font-black text-white text-xl">{m.nome}</h4><p className="text-xs text-slate-500 uppercase font-bold mt-1">{m.email}</p></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
