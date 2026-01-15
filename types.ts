@@ -1,3 +1,4 @@
+
 export interface GT {
   id: number;
   gt: string;
@@ -97,4 +98,28 @@ export interface Inscricao {
   checkin_at?: string;
   evento?: Evento;
   user?: User;
+}
+
+export interface Tarefa {
+  id: number;
+  created_at: string;
+  titulo: string;
+  descricao?: string;
+  responsavel_id?: number;
+  gt_id?: number;
+  prazo?: string;
+  status: 'Pendente' | 'Em Andamento' | 'Concluído';
+  criado_por: string;
+  responsavel?: User;
+  gt?: GT;
+  anexos?: { nome: string; url: string }[];
+}
+
+export interface TarefaComentario {
+  id: number;
+  created_at: string;
+  tarefa_id: number;
+  autor_id: number;
+  conteudo: string;
+  autor?: User;
 }
