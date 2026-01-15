@@ -1,5 +1,3 @@
-
-
 export interface GT {
   id: number;
   gt: string;
@@ -62,16 +60,6 @@ export interface PontuacaoAcao {
   id: number;
   acao: string;
   pontuacao: number;
-}
-
-export interface MuralPost {
-  id: number;
-  gt_id: number;
-  user_id: number; // ID numérico do usuário
-  user_nome: string;
-  conteudo: string;
-  created_at: string;
-  likes: number;
 }
 
 // TIPOS DE EVENTOS ATUALIZADOS

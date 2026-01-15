@@ -11,7 +11,7 @@ import {
   UserCog, ClipboardCheck, BookOpen, Trash, PenTool, ImageOff, Link, Type, X, Loader2,
   TrendingUp, Star, Globe, Zap, MoreHorizontal, UserPlus2, UserPlus as UserPlusIcon
 } from 'lucide-react';
-import { User, GT, Artigo, MuralPost, Evento, Inscricao, Cargo } from '../types';
+import { User, GT, Artigo, Evento, Inscricao, Cargo } from '../types';
 import { supabase } from '../services/supabase';
 
 interface DashboardProps {
@@ -20,7 +20,7 @@ interface DashboardProps {
   onProfileClick: () => void;
 }
 
-type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'mural' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage';
+type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage';
 
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -29,13 +29,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [gts, setGts] = useState<GT[]>([]);
   const [cargos, setCargos] = useState<Cargo[]>([]);
   const [myArticles, setMyArticles] = useState<Artigo[]>([]);
-  const [muralPosts, setMuralPosts] = useState<(MuralPost & { users: { nome: string, avatar?: string } })[]>([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
 
   // States abas membros
   const [memberSearch, setMemberSearch] = useState('');
-  const [newPost, setNewPost] = useState('');
   const [availableEvents, setAvailableEvents] = useState<Evento[]>([]);
   const [myTickets, setMyTickets] = useState<Inscricao[]>([]);
   
@@ -83,9 +81,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
       const { data: articles } = await supabase.from('artigos').select('*').eq('autor', user.uuid).order('created_at', { ascending: false });
       if (articles) setMyArticles(articles);
-
-      const { data: posts } = await supabase.from('mural_posts').select('*, users(nome, avatar)').order('created_at', { ascending: false }).limit(20);
-      if (posts) setMuralPosts(posts as any);
 
       const { data: futureEvents } = await supabase.from('eventos').select('*').order('data_inicio', { ascending: true });
       if (futureEvents) setAvailableEvents(futureEvents);
@@ -165,17 +160,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     } catch (e) { showNotification('error', 'Erro ao aprovar.'); }
   };
 
-  const handleCreatePost = async () => {
-    if (!newPost.trim() || !user) return;
-    try {
-      const { error } = await supabase.from('mural_posts').insert([{ user_id: user.id, user_nome: user.nome, conteudo: newPost, gt_id: user.gts?.[0] || 1 }]);
-      if (error) throw error;
-      setNewPost('');
-      showNotification('success', 'Postado no mural!');
-      fetchData();
-    } catch (e) { showNotification('error', 'Erro ao postar.'); }
-  };
-
   const submitArticle = async () => {
     const content = editorRef.current?.innerHTML || '';
     if (!articleForm.titulo || !content || content === '<br>' || articleForm.gt_id === 0) {
@@ -197,7 +181,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     { id: 'overview', icon: LayoutDashboard, label: 'Visão Geral' },
     { id: 'ranking', icon: Award, label: 'Ranking' },
     { id: 'members', icon: Users, label: 'Usuários' },
-    { id: 'mural', icon: MessageSquare, label: 'Mural' },
     { id: 'articles', icon: FileText, label: 'Meus Artigos' },
     { id: 'agenda', icon: CalendarRange, label: 'Agenda' },
     { id: 'my_events', icon: Ticket, label: 'Meus Tickets' },
@@ -328,26 +311,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             </div>
                         ))}
                     </div>
-                </div>
-            )}
-
-            {/* ABA: MURAL */}
-            {activeTab === 'mural' && (
-                <div className="animate-fade-in-up space-y-8 max-w-4xl mx-auto">
-                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl p-6">
-                        <textarea value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="O que você está inovando hoje?" className="w-full bg-transparent border-none focus:ring-0 text-lg resize-none min-h-[100px]"></textarea>
-                        <div className="flex justify-end pt-4 border-t border-white/5"><button onClick={handleCreatePost} className="bg-brand-neon text-black px-8 py-3 rounded-2xl font-black flex items-center gap-2">Publicar</button></div>
-                    </div>
-                    {muralPosts.map(post => (
-                        <div key={post.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl p-8">
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-12 h-12 rounded-full overflow-hidden bg-brand-green/20">{post.users?.avatar ? <img src={post.users.avatar} className="w-full h-full object-cover" /> : <UserIcon className="m-auto mt-3" />}</div>
-                                <div><div className="font-bold">{post.users?.nome || post.user_nome}</div><div className="text-xs text-slate-500">{new Date(post.created_at).toLocaleDateString('pt-BR')}</div></div>
-                            </div>
-                            <p className="text-lg leading-relaxed mb-6">{post.conteudo}</p>
-                            <div className="flex gap-6 pt-6 border-t border-white/5"><button className="flex items-center gap-2 text-slate-500 hover:text-brand-neon"><ThumbsUp size={18} /> {post.likes || 0}</button></div>
-                        </div>
-                    ))}
                 </div>
             )}
 
@@ -574,7 +537,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         </main>
       </div>
 
-      {/* MODAL EDITOR DE ARTIGO COMPLETO (RESTAURADO) */}
+      {/* MODAL EDITOR DE ARTIGO COMPLETO */}
       {isCreatingArticle && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setIsCreatingArticle(false)}></div>
