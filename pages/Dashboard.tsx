@@ -99,6 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     tags: [] as string[]
   });
   const editorRef = useRef<HTMLDivElement>(null);
+  const contentImageInputRef = useRef<HTMLInputElement>(null);
   const articleCoverInputRef = useRef<HTMLInputElement>(null);
 
   // Ticket States
@@ -186,6 +187,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Rich Text Editor Commands
+  const execEditorCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    if (editorRef.current) {
+      setNewArticleData(prev => ({ ...prev, conteudo: editorRef.current?.innerHTML || '' }));
+    }
+  };
+
+  const handleContentImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingAction(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `article_content_${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('imagensBlog')
+        .upload(`artigos/${fileName}`, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('imagensBlog').getPublicUrl(`artigos/${fileName}`);
+      
+      // Focus editor and insert image
+      editorRef.current?.focus();
+      execEditorCommand('insertImage', data.publicUrl);
+      showNotification('success', 'Imagem inserida no conteúdo!');
+    } catch (e) {
+      showNotification('error', 'Erro ao subir imagem para o conteúdo.');
+    } finally {
+      setIsProcessingAction(false);
+      if (contentImageInputRef.current) contentImageInputRef.current.value = '';
+    }
+  };
 
   // Task Details Load
   useEffect(() => {
@@ -558,14 +595,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                          <div className="space-y-6">
                             <input type="text" placeholder="Título impactante" value={newArticleData.titulo} onChange={(e) => setNewArticleData({...newArticleData, titulo: e.target.value})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-6 text-2xl font-black outline-none focus:border-brand-neon text-slate-900 dark:text-white" />
                             <input type="text" placeholder="Subtítulo curto" value={newArticleData.subtitulo} onChange={(e) => setNewArticleData({...newArticleData, subtitulo: e.target.value})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-600 dark:text-slate-400 outline-none focus:border-brand-neon" />
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                <div onClick={() => articleCoverInputRef.current?.click()} className="h-64 bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-brand-neon group transition-all">
                                   {newArticleData.capa ? <img src={newArticleData.capa} className="w-full h-full object-cover rounded-[2.5rem]" /> : <><ImageIcon className="text-slate-300 dark:text-slate-700 group-hover:text-brand-neon" size={48} /><p className="text-slate-500 mt-4 text-sm font-bold">Capa do Artigo</p></>}
                                   <input type="file" ref={articleCoverInputRef} className="hidden" onChange={handleArticleCoverUpload} />
                                </div>
-                               <div className="space-y-4">
-                                  <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Conteúdo do Artigo (HTML permitido)</label>
-                                  <textarea value={newArticleData.conteudo} onChange={(e) => setNewArticleData({...newArticleData, conteudo: e.target.value})} className="w-full h-52 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 outline-none focus:border-brand-neon resize-none font-mono text-sm text-slate-900 dark:text-white" placeholder="<p>Seu texto aqui...</p>" />
+                               <div className="md:col-span-2 space-y-4">
+                                  <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Conteúdo do Artigo</label>
+                                  
+                                  {/* Editor Toolbar */}
+                                  <div className="flex flex-wrap gap-1 p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-t-2xl">
+                                    <button onClick={() => execEditorCommand('bold')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Negrito"><Bold size={18} /></button>
+                                    <button onClick={() => execEditorCommand('italic')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Itálico"><Italic size={18} /></button>
+                                    <button onClick={() => execEditorCommand('formatBlock', 'h1')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Título 1"><Heading1 size={18} /></button>
+                                    <button onClick={() => execEditorCommand('formatBlock', 'h2')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Título 2"><Heading2 size={18} /></button>
+                                    <div className="w-px h-6 bg-slate-300 dark:bg-white/10 mx-1 self-center"></div>
+                                    <button onClick={() => execEditorCommand('insertUnorderedList')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Lista"><List size={18} /></button>
+                                    <button onClick={() => execEditorCommand('insertOrderedList')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Lista Numerada"><ListOrdered size={18} /></button>
+                                    <div className="w-px h-6 bg-slate-300 dark:bg-white/10 mx-1 self-center"></div>
+                                    <button onClick={() => contentImageInputRef.current?.click()} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Inserir Imagem"><ImageIcon size={18} /></button>
+                                    <input type="file" ref={contentImageInputRef} className="hidden" accept="image/*" onChange={handleContentImageUpload} />
+                                    <button onClick={() => execEditorCommand('removeFormat')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10 ml-auto" title="Limpar Formatação"><Type size={18} /></button>
+                                  </div>
+
+                                  {/* Editable Area */}
+                                  <div 
+                                    ref={editorRef}
+                                    contentEditable
+                                    onInput={(e) => setNewArticleData(prev => ({ ...prev, conteudo: e.currentTarget.innerHTML }))}
+                                    className="w-full h-80 overflow-y-auto bg-white dark:bg-white/5 border border-t-0 border-slate-200 dark:border-white/10 rounded-b-2xl p-6 outline-none focus:border-brand-neon prose dark:prose-invert max-w-none text-slate-900 dark:text-white"
+                                    placeholder="Escreva seu artigo aqui..."
+                                  />
                                </div>
                             </div>
                          </div>
