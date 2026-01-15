@@ -61,6 +61,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [isAddingGt, setIsAddingGt] = useState(false);
   const [newGtName, setNewGtName] = useState('');
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [gtMemberSearchTerm, setGtMemberSearchTerm] = useState('');
 
   // Members Screen States
   const [selectedMemberForGts, setSelectedMemberForGts] = useState<User | null>(null);
@@ -425,6 +426,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   if (!user) return <div className="flex items-center justify-center h-screen bg-black text-white">Carregando...</div>;
 
   const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+  // Members filtered for "Add Member" list in GT management
+  const potentialGtMembers = useMemo(() => {
+    if (!selectedGtForManagement) return [];
+    return members.filter(m => 
+      !m.gts?.includes(selectedGtForManagement.id) && 
+      (gtMemberSearchTerm === '' || m.nome.toLowerCase().includes(gtMemberSearchTerm.toLowerCase()) || m.email.toLowerCase().includes(gtMemberSearchTerm.toLowerCase()))
+    );
+  }, [members, selectedGtForManagement, gtMemberSearchTerm]);
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white font-sans selection:bg-brand-neon selection:text-black flex transition-colors duration-300">
@@ -878,7 +888,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Membro Responsável</label>
-                          <select value={newTaskData.responsavel_id} onChange={(e) => setNewTaskData({...newTaskData, responsavel_id: parseInt(e.target.value)})} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-slate-700 dark:text-white outline-none focus:border-brand-neon">
+                          <select value={newTaskData.responsavel_id} onChange={(e) => setNewTaskData({...newTaskData, responsavel_id: parseInt(e.target.value)})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-slate-700 dark:text-white outline-none focus:border-brand-neon">
                             <option value="">Selecione o Membro</option>
                             {members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                           </select>
@@ -1084,7 +1094,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                    <div className="flex justify-between items-center"><h2 className="text-4xl font-black flex items-center gap-4 text-slate-900 dark:text-white"><Boxes className="text-brand-neon" size={40} /> Gestão de GTs</h2><button onClick={() => setIsAddingGt(true)} className="bg-brand-neon text-black px-6 py-3 rounded-xl font-black shadow-lg">NOVO GT</button></div>
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                       {gts.map(gt => (
-                        <div key={gt.id} onClick={() => setSelectedGtForManagement(gt)} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-10 hover:border-brand-neon cursor-pointer transition-all shadow-sm dark:shadow-none">
+                        <div key={gt.id} onClick={() => { setSelectedGtForManagement(gt); setGtMemberSearchTerm(''); }} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-10 hover:border-brand-neon cursor-pointer transition-all shadow-sm dark:shadow-none">
                            <div className="w-12 h-12 bg-brand-neon/10 rounded-xl flex items-center justify-center text-brand-neon mb-6"><Boxes size={24} /></div>
                            <h3 className="text-2xl font-black text-slate-900 dark:text-white">{gt.gt}</h3>
                            <p className="text-slate-500 dark:text-slate-500 text-sm mt-2">Clique para gerenciar membros.</p>
@@ -1147,23 +1157,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
                               <div className="space-y-8">
                                  <h4 className="text-xl font-black flex items-center gap-3 text-slate-900 dark:text-white"><PlusCircle className="text-brand-neon" /> Adicionar Membro</h4>
-                                 <div className="space-y-4">
-                                    <p className="text-xs text-slate-500 dark:text-slate-500">Selecione um membro da comunidade para vincular a este grupo.</p>
-                                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
-                                       {members.filter(m => !m.gts?.includes(selectedGtForManagement.id)).map(member => (
+                                 <div className="space-y-6">
+                                    <div className="relative group">
+                                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                       <input 
+                                          type="text" 
+                                          placeholder="Buscar membro por nome ou e-mail..." 
+                                          value={gtMemberSearchTerm}
+                                          onChange={(e) => setGtMemberSearchTerm(e.target.value)}
+                                          className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-brand-neon transition-all text-slate-900 dark:text-white"
+                                       />
+                                    </div>
+                                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-4 custom-scrollbar">
+                                       {potentialGtMembers.map(member => (
                                           <button key={member.id} onClick={() => handleAddMemberToGt(member)} className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-2xl hover:border-brand-neon/50 hover:bg-brand-neon/5 transition-all text-left group shadow-sm dark:shadow-none">
                                              <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-black border border-slate-300 dark:border-white/10 overflow-hidden">
                                                    {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={16} className="m-auto mt-3 text-slate-400 dark:text-slate-600" />}
                                                 </div>
-                                                <div>
-                                                   <span className="font-bold text-sm text-slate-900 dark:text-white block">{member.nome}</span>
-                                                   <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">{member.email}</span>
+                                                <div className="flex-1 min-w-0">
+                                                   <span className="font-bold text-sm text-slate-900 dark:text-white block truncate">{member.nome}</span>
+                                                   <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{member.email}</span>
                                                 </div>
                                              </div>
-                                             <ArrowRight size={16} className="text-brand-neon group-hover:translate-x-1 transition-transform" />
+                                             <ArrowRight size={16} className="text-brand-neon group-hover:translate-x-1 transition-transform flex-shrink-0" />
                                           </button>
                                        ))}
+                                       {potentialGtMembers.length === 0 && members.length > 0 && (
+                                          <p className="text-slate-400 dark:text-slate-600 italic text-sm py-10 text-center">Nenhum membro encontrado.</p>
+                                       )}
                                     </div>
                                  </div>
                               </div>
