@@ -156,6 +156,7 @@ const App: React.FC = () => {
                 onLogout={handleLogout} 
                 user={user} 
                 onProfileClick={() => setCurrentPage(Page.PROFILE)}
+                onViewCompany={handleViewCompany}
             />
         );
 

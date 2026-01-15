@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
-<html lang="pt-BR" class="scroll-smooth">
+<html lang="pt-BR" class="scroll-smooth h-full">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
     <title>INOVAP - Ecossistema de Inovação</title>
     <link rel="icon" type="image/png" href="https://jmhquynjyekclwxjgupk.supabase.co/storage/v1/object/public/logotipos/logotipos/2.png" />
@@ -25,6 +24,8 @@
       body {
         font-family: 'Montserrat', sans-serif;
         transition: background-color 0.3s ease, color 0.3s ease;
+        height: 100%;
+        margin: 0;
       }
       
       .light {
@@ -63,6 +64,11 @@
       .light .prose h1, .light .prose h2, .light .prose h3, .light .prose h4 { color: #0f172a !important; }
       .dark .prose p, .dark .prose ul, .dark .prose ol { color: #cbd5e1; }
       .light .prose p, .light .prose ul, .light .prose ol { color: #334155; }
+
+      /* Fix iOS momentum scroll */
+      .overflow-y-auto {
+        -webkit-overflow-scrolling: touch;
+      }
     </style>
     <script>
       tailwind.config = {
@@ -121,7 +127,7 @@
 </script>
 </head>
   <body class="bg-white dark:bg-black transition-colors duration-300">
-    <div id="root"></div>
+    <div id="root" class="h-full"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>

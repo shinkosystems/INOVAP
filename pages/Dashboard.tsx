@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Logo } from '../components/ui/Logo';
 import { 
   LayoutDashboard, FileText, Users, LogOut, Award, ShieldCheck, Shield, Layers, PlusCircle, 
@@ -10,20 +10,21 @@ import {
   Info, Crown, Boxes, UserMinus, ArrowLeft, ChevronDown, UserCheck, ShieldAlert,
   UserCog, ClipboardCheck, BookOpen, Trash, PenTool, ImageOff, Link, Type, X, Loader2,
   TrendingUp, Star, Globe, Zap, MoreHorizontal, UserPlus2, UserPlus as UserPlusIcon,
-  Menu as MenuIcon, Trophy, History, Coins
+  Menu as MenuIcon, Trophy, History, Coins, Edit3, Save as SaveIcon, Building2, ExternalLink
 } from 'lucide-react';
-import { User, GT, Artigo, Evento, Inscricao, Cargo, PontuacaoRegra, PontuacaoLog } from '../types';
+import { User, GT, Artigo, Evento, Inscricao, Cargo, PontuacaoRegra, PontuacaoLog, Empresa } from '../types';
 import { supabase } from '../services/supabase';
 
 interface DashboardProps {
   onLogout: () => void;
   user: User | null;
   onProfileClick: () => void;
+  onViewCompany: (empresa: Empresa) => void;
 }
 
 type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage' | 'gamification';
 
-export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick, onViewCompany }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [ranking, setRanking] = useState<User[]>([]);
@@ -39,6 +40,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [availableEvents, setAvailableEvents] = useState<Evento[]>([]);
   const [myTickets, setMyTickets] = useState<Inscricao[]>([]);
   
+  // Detalhes do Membro
+  const [viewingMember, setViewingMember] = useState<User | null>(null);
+  const [viewingMemberCompany, setViewingMemberCompany] = useState<Empresa | null>(null);
+  const [isLoadingMemberDetails, setIsLoadingMemberDetails] = useState(false);
+
   // Governança States
   const [pendingArticles, setPendingArticles] = useState<(Artigo & { author_name?: string })[]>([]);
   const [selectedArticlePreview, setSelectedArticlePreview] = useState<(Artigo & { author_name?: string }) | null>(null);
@@ -51,12 +57,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [logs, setLogs] = useState<PontuacaoLog[]>([]);
   const [selectedUserForPoints, setSelectedUserForPoints] = useState<User | null>(null);
   const [isAwardingPoints, setIsAwardingPoints] = useState(false);
+  const [isEditingRules, setIsEditingRules] = useState(false);
+  const [editingRule, setEditingRule] = useState<PontuacaoRegra | null>(null);
 
   // Editor State
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const [articleForm, setArticleForm] = useState({ titulo: '', subtitulo: '', conteudo: '', capa: '', gt_id: 0, tags: [] as string[] });
   const editorRef = useRef<HTMLDivElement>(null);
   const [isSubmittingArticle, setIsSubmittingArticle] = useState(false);
+
+  // Memoized current user data from the members list to ensure live points
+  const currentUserData = useMemo(() => {
+    return members.find(m => m.uuid === user?.uuid) || user;
+  }, [members, user]);
 
   const execCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);
@@ -126,10 +139,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleAwardPoints = async (regra: PontuacaoRegra) => {
-    if (!selectedUserForPoints || !user) return;
+    if (!selectedUserForPoints || !user) {
+      showNotification('error', 'Selecione um membro primeiro!');
+      return;
+    }
     setIsAwardingPoints(true);
     try {
-      // 1. Atualiza pontos do usuário
       const newTotal = (selectedUserForPoints.pontos || 0) + regra.valor;
       const { error: userError } = await supabase
         .from('users')
@@ -138,7 +153,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       
       if (userError) throw userError;
 
-      // 2. Registra o Log
       const { error: logError } = await supabase
         .from('pontuacao_logs')
         .insert([{
@@ -150,13 +164,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       
       if (logError) throw logError;
 
-      showNotification('success', `${regra.valor} pontos atribuídos a ${selectedUserForPoints.nome}!`);
+      showNotification('success', `${regra.valor} Inovacoins para ${selectedUserForPoints.nome}!`);
       setSelectedUserForPoints(null);
-      fetchData();
+      await fetchData();
     } catch (e) {
       showNotification('error', 'Erro ao atribuir pontos.');
     } finally {
       setIsAwardingPoints(false);
+    }
+  };
+
+  const handleUpdateRule = async () => {
+    if (!editingRule) return;
+    try {
+      const { error } = await supabase
+        .from('pontuacao_regras')
+        .update({ acao: editingRule.acao, valor: editingRule.valor })
+        .eq('id', editingRule.id);
+      
+      if (error) throw error;
+      showNotification('success', 'Regra atualizada!');
+      setIsEditingRules(false);
+      setEditingRule(null);
+      fetchData();
+    } catch (e) {
+      showNotification('error', 'Erro ao atualizar regra.');
     }
   };
 
@@ -178,6 +210,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
           showNotification('success', 'Cargo atualizado!');
           fetchData();
       } catch (e) { showNotification('error', 'Erro ao mudar cargo.'); } finally { setIsUpdatingUser(null); }
+  };
+
+  const handleDeleteUser = async (userId: number, userName: string) => {
+      if (!window.confirm(`Tem certeza que deseja remover permanentemente o inovador ${userName}? Esta ação é irreversível.`)) return;
+      
+      setIsUpdatingUser(userId);
+      try {
+          const { error } = await supabase.from('users').delete().eq('id', userId);
+          if (error) throw error;
+          
+          showNotification('success', `Inovador ${userName} removido com sucesso.`);
+          fetchData();
+      } catch (e: any) {
+          showNotification('error', `Erro ao remover usuário: ${e.message}`);
+      } finally {
+          setIsUpdatingUser(null);
+      }
   };
 
   const handleToggleMemberInGt = async (targetUser: User, gtId: number, isAdding: boolean) => {
@@ -210,7 +259,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (article) {
           const { data: author } = await supabase.from('users').select('artigos, pontos').eq('uuid', article.autor).single();
           if (author) {
-            // Ao aprovar artigo, ganha pontos automaticamente se a regra existir (id 1 presumido como Artigo)
             const pontosArtigo = rules.find(r => r.acao.includes('Artigo'))?.valor || 50;
             await supabase.from('users').update({ 
               artigos: (author.artigos || 0) + 1,
@@ -241,6 +289,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     } catch (e) { showNotification('error', 'Erro ao salvar.'); } finally { setIsSubmittingArticle(false); }
   };
 
+  const handleViewMember = async (member: User) => {
+    setIsLoadingMemberDetails(true);
+    setViewingMember(member);
+    try {
+      const { data, error } = await supabase
+        .from('empresas')
+        .select('*')
+        .eq('responsavel', member.uuid)
+        .single();
+      
+      if (!error && data) {
+        setViewingMemberCompany(data);
+      } else {
+        setViewingMemberCompany(null);
+      }
+    } catch (e) {
+      setViewingMemberCompany(null);
+    } finally {
+      setIsLoadingMemberDetails(false);
+    }
+  };
+
   const sidebarItems = [
     { id: 'overview', icon: LayoutDashboard, label: 'Visão Geral' },
     { id: 'ranking', icon: Award, label: 'Ranking' },
@@ -256,8 +326,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     setIsDrawerOpen(false);
   };
 
+  const filteredSearchMembers = members.filter(m => m.nome.toLowerCase().includes(memberSearch.toLowerCase()));
+
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white flex font-sans overflow-hidden relative transition-colors duration-300">
+    <div className="h-screen w-full bg-white dark:bg-black text-slate-900 dark:text-white flex font-sans overflow-hidden relative transition-colors duration-300">
       
       {notification && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[200] animate-fade-in-up px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border bg-brand-green/20 border-brand-green text-brand-neon font-bold flex items-center gap-2">
@@ -275,10 +347,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
       {/* Mobile Drawer Panel */}
       <div className={`
-        fixed top-0 left-0 bottom-0 w-80 bg-white dark:bg-brand-black z-[101] md:hidden transform transition-transform duration-500 ease-out border-r border-slate-200 dark:border-white/5 shadow-2xl
+        fixed top-0 left-0 bottom-0 w-80 bg-white dark:bg-brand-black z-[101] md:hidden transform transition-transform duration-500 ease-out border-r border-slate-200 dark:border-white/5 shadow-2xl flex flex-col
         ${isDrawerOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="h-24 flex items-center justify-between px-8 border-b border-slate-100 dark:border-white/5">
+        <div className="h-24 flex items-center justify-between px-8 border-b border-slate-100 dark:border-white/5 flex-shrink-0">
           <Logo />
           <button onClick={() => setIsDrawerOpen(false)} className="p-2 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500">
             <X size={20} />
@@ -309,7 +381,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
              </>
           )}
         </div>
-        <div className="p-6 border-t border-slate-200 dark:border-white/5">
+        <div className="p-6 border-t border-slate-200 dark:border-white/5 flex-shrink-0">
             <button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-red-500 hover:bg-red-500/10 transition-colors font-bold">
                 <LogOut size={22} /> Sair
             </button>
@@ -318,7 +390,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
       {/* Desktop Sidebar */}
       <div className="w-72 bg-slate-50 dark:bg-white/[0.03] backdrop-blur-xl border-r border-slate-200 dark:border-white/5 flex-shrink-0 hidden md:flex flex-col z-20 m-4 rounded-[2.5rem] h-[calc(100vh-2rem)] shadow-sm">
-        <div className="h-24 flex items-center px-8 cursor-pointer" onClick={() => handleTabChange('overview')}><Logo /></div>
+        <div className="h-24 flex items-center px-8 cursor-pointer flex-shrink-0" onClick={() => handleTabChange('overview')}><Logo /></div>
         <div className="flex-1 py-4 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           {sidebarItems.map((item) => (
             <button key={item.id} onClick={() => handleTabChange(item.id as Tab)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/10' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'}`}>
@@ -344,14 +416,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
              </>
           )}
         </div>
-        <div className="p-4 border-t border-slate-200 dark:border-white/5">
+        <div className="p-4 border-t border-slate-200 dark:border-white/5 flex-shrink-0">
             <button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-red-500 hover:bg-red-500/10 transition-colors font-bold">
                 <LogOut size={22} /> Sair
             </button>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-24 flex items-center justify-between px-6 md:px-10 flex-shrink-0 border-b border-slate-100 dark:border-white/5">
           <div className="flex items-center gap-4">
             <button 
@@ -378,7 +450,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             
             {/* ABA: VISÃO GERAL */}
             {activeTab === 'overview' && (
-                <div className="animate-fade-in-up space-y-12">
+                <div className="animate-fade-in-up space-y-12 pb-12">
                     <div className="bg-gradient-to-br from-brand-green/20 to-brand-neon/5 dark:from-brand-green/30 dark:to-emerald-900/10 rounded-[3rem] p-8 md:p-12 border border-slate-200 dark:border-white/10 relative overflow-hidden">
                         <div className="relative z-10">
                             <h1 className="text-3xl md:text-5xl font-black mb-4">Olá, {user?.nome.split(' ')[0]}!</h1>
@@ -389,12 +461,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div className="bg-white dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
                             <Award className="text-brand-neon mb-6" size={32} />
-                            <div className="text-4xl font-black mb-2">{user?.pontos || 0}</div>
+                            <div className="text-4xl font-black mb-2 animate-[pulse_2s_ease-in-out_infinite]">{currentUserData?.pontos || 0}</div>
                             <div className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Seus Pontos</div>
                         </div>
                         <div className="bg-white dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
                             <TrendingUp className="text-brand-green mb-6" size={32} />
-                            <div className="text-4xl font-black mb-2">#{members.findIndex(m => m.uuid === user?.uuid) + 1}</div>
+                            <div className="text-4xl font-black mb-2">
+                                #{members.findIndex(m => m.uuid === user?.uuid) + 1 || '-'}
+                            </div>
                             <div className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">No Ranking</div>
                         </div>
                         <div className="bg-white dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
@@ -408,7 +482,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
             {/* ABA: RANKING */}
             {activeTab === 'ranking' && (
-                <div className="animate-fade-in-up space-y-8">
+                <div className="animate-fade-in-up space-y-8 pb-12">
                     <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden">
                         {ranking.map((member, i) => (
                             <div key={member.id} className="p-6 md:p-8 flex items-center justify-between border-b border-white/5 last:border-0">
@@ -428,8 +502,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
             {/* ABA: GAMIFICATION (CENTRO DE PONTUAÇÃO) */}
             {activeTab === 'gamification' && (
-              <div className="animate-fade-in-up space-y-12">
+              <div className="animate-fade-in-up space-y-12 pb-12">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  
                   {/* SEÇÃO ATRIBUIR PONTOS */}
                   <div className="space-y-8">
                     <div className="flex items-center gap-3 mb-4">
@@ -437,56 +512,104 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       <h3 className="text-2xl font-black">Atribuição Manual</h3>
                     </div>
                     
-                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] space-y-6">
+                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] space-y-6 relative">
+                      
+                      {/* BUSCA DE MEMBRO */}
                       <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">1. Selecione o Membro</label>
+                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3 block">1. Encontre o Membro</label>
                         <div className="relative">
                           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                           <input 
                             type="text" 
-                            placeholder="Buscar inovador..." 
+                            placeholder="Nome do inovador..." 
                             value={memberSearch}
                             onChange={(e) => setMemberSearch(e.target.value)}
-                            className="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm focus:border-brand-neon outline-none"
+                            className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-4 pl-12 pr-4 text-sm focus:border-brand-neon outline-none transition-all"
                           />
-                        </div>
-                        {memberSearch && !selectedUserForPoints && (
-                          <div className="mt-2 bg-slate-900 border border-white/10 rounded-xl overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
-                            {members.filter(m => m.nome.toLowerCase().includes(memberSearch.toLowerCase())).map(m => (
-                              <button key={m.id} onClick={() => { setSelectedUserForPoints(m); setMemberSearch(''); }} className="w-full flex items-center gap-3 p-3 hover:bg-brand-neon/10 text-left border-b border-white/5 last:border-0">
-                                <div className="w-8 h-8 rounded-full bg-brand-green/20 overflow-hidden">{m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <UserIcon size={14} className="m-auto mt-2" />}</div>
-                                <div><div className="text-sm font-bold">{m.nome}</div><div className="text-[10px] text-slate-500">{m.pontos} Inovacoins</div></div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {selectedUserForPoints && (
-                          <div className="mt-4 p-4 bg-brand-neon/5 border border-brand-neon/20 rounded-xl flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-brand-neon text-black flex items-center justify-center font-bold">{selectedUserForPoints.nome.charAt(0)}</div>
-                              <div><div className="font-bold">{selectedUserForPoints.nome}</div><div className="text-xs text-brand-neon">Membro selecionado</div></div>
+                          
+                          {/* DROPDOWN DE RESULTADOS */}
+                          {memberSearch && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                              {filteredSearchMembers.length > 0 ? (
+                                filteredSearchMembers.map(m => (
+                                  <button 
+                                    key={m.id} 
+                                    onClick={() => { setSelectedUserForPoints(m); setMemberSearch(''); }} 
+                                    className="w-full flex items-center justify-between p-4 hover:bg-brand-neon/10 text-left border-b border-slate-100 dark:border-white/5 last:border-0 transition-colors group"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full bg-brand-green/20 overflow-hidden border border-white/5">
+                                        {m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <UserIcon size={16} className="m-auto mt-3 text-slate-500" />}
+                                      </div>
+                                      <div>
+                                        <div className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-brand-neon transition-colors">{m.nome}</div>
+                                        <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{cargos.find(c => c.id === m.cargo)?.cargo}</div>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xs font-black text-brand-neon">{m.pontos}</div>
+                                      <div className="text-[9px] text-slate-500 font-bold uppercase">Coins</div>
+                                    </div>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-4 text-center text-slate-500 text-xs">Ninguém encontrado.</div>
+                              )}
                             </div>
-                            <button onClick={() => setSelectedUserForPoints(null)} className="text-slate-500 hover:text-white"><X size={18} /></button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
 
+                      {/* MEMBRO SELECIONADO ATIVO */}
+                      {selectedUserForPoints ? (
+                        <div className="animate-fade-in-up p-5 bg-brand-neon/5 border border-brand-neon/30 rounded-2xl flex items-center justify-between shadow-lg shadow-brand-neon/5 ring-1 ring-brand-neon/20">
+                          <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-brand-neon text-black flex items-center justify-center font-black text-xl shadow-lg shadow-brand-neon/20 ring-4 ring-black/20">
+                              {selectedUserForPoints.nome.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="font-black text-lg text-slate-900 dark:text-white leading-tight">{selectedUserForPoints.nome}</div>
+                              <div className="text-[10px] font-black text-brand-neon uppercase tracking-[0.2em] mt-1 flex items-center gap-1">
+                                <Crown size={10} /> Membro Selecionado
+                              </div>
+                            </div>
+                          </div>
+                          <button onClick={() => setSelectedUserForPoints(null)} className="p-2 bg-white/5 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-xl transition-all">
+                            <X size={20} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-2xl opacity-50">
+                          <UserPlusIcon className="mx-auto mb-2 text-slate-400" size={32} />
+                          <p className="text-xs font-bold text-slate-500">Selecione um membro para atribuir pontos</p>
+                        </div>
+                      )}
+
+                      {/* SELETOR DE AÇÃO (STEP 2) */}
                       {selectedUserForPoints && (
-                        <div className="animate-fade-in-up">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">2. Selecione a Ação</label>
-                          <div className="grid grid-cols-1 gap-3">
+                        <div className="animate-fade-in-up space-y-4 pt-4 border-t border-slate-200 dark:border-white/10">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">2. Selecione a Realização</label>
+                          <div className="grid grid-cols-1 gap-2">
                             {rules.map(rule => (
                               <button 
                                 key={rule.id} 
                                 onClick={() => handleAwardPoints(rule)}
                                 disabled={isAwardingPoints}
-                                className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl hover:border-brand-neon hover:bg-brand-neon/10 transition-all group disabled:opacity-50"
+                                className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:border-brand-neon hover:bg-brand-neon/10 transition-all group disabled:opacity-50 text-left"
                               >
                                 <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-white/5 rounded-lg group-hover:bg-brand-neon/20"><Plus size={16} className="text-brand-neon" /></div>
-                                  <span className="font-bold text-sm">{rule.acao}</span>
+                                  <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg group-hover:bg-brand-neon group-hover:text-black transition-all">
+                                    <Plus size={16} />
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-sm block">{rule.acao}</span>
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Categoria: Membro</span>
+                                  </div>
                                 </div>
-                                <span className="text-brand-neon font-black text-sm">+{rule.valor}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-brand-neon font-black text-base">+{rule.valor}</span>
+                                  {isAwardingPoints && <Loader2 size={14} className="animate-spin text-brand-neon" />}
+                                </div>
                               </button>
                             ))}
                           </div>
@@ -501,44 +624,81 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       <div className="p-3 bg-brand-green/10 rounded-2xl text-brand-green"><History size={24} /></div>
                       <h3 className="text-2xl font-black">Histórico Recente</h3>
                     </div>
-                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden">
-                      <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col h-[600px]">
+                      <div className="flex-1 overflow-y-auto custom-scrollbar">
                         {logs.map(log => (
-                          <div key={log.id} className="p-6 border-b border-white/5 last:border-0 flex items-center justify-between group">
+                          <div key={log.id} className="p-6 border-b border-slate-100 dark:border-white/5 last:border-0 flex items-center justify-between group hover:bg-white/5 transition-colors">
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:bg-brand-neon group-hover:text-black transition-all">
-                                <Award size={18} />
+                              <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-brand-neon group-hover:text-black transition-all shadow-sm">
+                                <Award size={20} />
                               </div>
                               <div>
-                                <div className="text-sm font-bold">{log.user_nome}</div>
-                                <div className="text-[10px] text-slate-500 uppercase tracking-widest">{log.regra_acao}</div>
+                                <div className="text-sm font-black text-slate-900 dark:text-white">{log.user_nome}</div>
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{log.regra_acao}</div>
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="text-brand-neon font-black">+{log.pontos_atribuidos}</div>
-                              <div className="text-[9px] text-slate-600 font-bold uppercase">{new Date(log.created_at).toLocaleDateString('pt-BR')}</div>
+                              <div className="text-brand-neon font-black text-lg">+{log.pontos_atribuidos}</div>
+                              <div className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{new Date(log.created_at).toLocaleDateString('pt-BR')}</div>
                             </div>
                           </div>
                         ))}
-                        {logs.length === 0 && <div className="p-12 text-center text-slate-500 font-bold">Nenhum registro de pontuação.</div>}
+                        {logs.length === 0 && (
+                          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 opacity-50">
+                            <History size={64} />
+                            <p className="font-black uppercase tracking-widest text-xs">Nenhuma movimentação</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* GESTÃO DE REGRAS */}
-                <div className="space-y-8">
-                   <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                      <h3 className="text-2xl font-black flex items-center gap-3"><Settings className="text-slate-400" /> Tabela de Preços (Regras)</h3>
-                      <button className="bg-white/5 hover:bg-white/10 text-xs font-black px-4 py-2 rounded-xl border border-white/10 transition-all">Editar Valores</button>
+                {/* GESTÃO DE REGRAS - TABELA DE PREÇOS */}
+                <div className="space-y-8 animate-fade-in-up">
+                   <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-6">
+                      <div className="flex items-center gap-4">
+                         <div className="p-3 bg-slate-100 dark:bg-white/10 rounded-2xl text-slate-500"><Settings size={24} /></div>
+                         <div>
+                            <h3 className="text-2xl font-black">Tabela de Preços (Regras)</h3>
+                            <p className="text-sm text-slate-500">Configure os valores padrão de pontuação.</p>
+                         </div>
+                      </div>
+                      <button 
+                        onClick={() => setIsEditingRules(!isEditingRules)}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-xs transition-all border ${isEditingRules ? 'bg-brand-neon text-black border-brand-neon' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500'}`}
+                      >
+                        {isEditingRules ? <Check size={16} /> : <Edit3 size={16} />}
+                        {isEditingRules ? 'Finalizar Edição' : 'Editar Valores'}
+                      </button>
                    </div>
+
                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                       {rules.map(rule => (
-                        <div key={rule.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-6 rounded-[2rem] flex flex-col items-center text-center group">
-                          <div className="w-12 h-12 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon mb-4 group-hover:scale-110 transition-transform"><Plus size={20} /></div>
-                          <h4 className="font-bold text-sm mb-1">{rule.acao}</h4>
-                          <span className="text-2xl font-black text-white">{rule.valor}</span>
-                          <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-1">Inovacoins</span>
+                        <div 
+                          key={rule.id} 
+                          onClick={() => {
+                            if (isEditingRules) { setEditingRule(rule); }
+                            else if (selectedUserForPoints) { handleAwardPoints(rule); }
+                          }}
+                          className={`
+                            bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] flex flex-col items-center text-center group transition-all relative
+                            ${(selectedUserForPoints && !isEditingRules) ? 'cursor-pointer hover:border-brand-neon hover:scale-105 hover:shadow-2xl hover:shadow-brand-neon/20' : ''}
+                            ${isEditingRules ? 'ring-2 ring-brand-neon ring-inset cursor-pointer' : ''}
+                          `}
+                        >
+                          <div className={`w-14 h-14 bg-brand-neon/10 rounded-3xl flex items-center justify-center text-brand-neon mb-5 group-hover:scale-110 transition-transform ${isEditingRules ? 'animate-pulse' : ''}`}>
+                            {isEditingRules ? <Edit3 size={24} /> : <Award size={24} />}
+                          </div>
+                          <h4 className="font-black text-sm mb-2 text-slate-900 dark:text-white leading-tight">{rule.acao}</h4>
+                          <span className="text-3xl font-black text-brand-neon">{rule.valor}</span>
+                          <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-2">Inovacoins</span>
+                          
+                          {selectedUserForPoints && !isEditingRules && (
+                             <div className="absolute top-4 right-4 text-brand-neon opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Plus size={20} />
+                             </div>
+                          )}
                         </div>
                       ))}
                    </div>
@@ -546,9 +706,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               </div>
             )}
 
+            {/* MODAL EDIÇÃO DE REGRA */}
+            {editingRule && (
+              <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditingRule(null)}></div>
+                <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 w-full max-w-md rounded-[2.5rem] p-10 animate-fade-in-up">
+                  <h3 className="text-2xl font-black mb-8 flex items-center gap-3">
+                    <Edit3 className="text-brand-neon" /> Editar Regra
+                  </h3>
+                  <div className="space-y-6">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Nome da Ação</label>
+                      <input 
+                        type="text" 
+                        value={editingRule.acao}
+                        onChange={(e) => setEditingRule({...editingRule, acao: e.target.value})}
+                        className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:border-brand-neon outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Valor em Inovacoins</label>
+                      <input 
+                        type="number" 
+                        value={editingRule.valor}
+                        onChange={(e) => setEditingRule({...editingRule, valor: Number(e.target.value)})}
+                        className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:border-brand-neon outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-4 pt-4">
+                      <button onClick={() => setEditingRule(null)} className="flex-1 py-4 font-black text-sm text-slate-500 hover:text-white transition-colors">Cancelar</button>
+                      <button onClick={handleUpdateRule} className="flex-1 bg-brand-neon text-black py-4 rounded-2xl font-black text-sm hover:scale-105 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-neon/20">
+                        <SaveIcon size={18} /> Salvar Regra
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ABA: MEMBROS */}
             {activeTab === 'members' && (
-                <div className="animate-fade-in-up space-y-8">
+                <div className="animate-fade-in-up space-y-8 pb-12">
                     <div className="relative">
                         <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
                         <input type="text" placeholder="Buscar inovadores..." value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl py-6 pl-16 pr-6 focus:border-brand-neon outline-none transition-all" />
@@ -560,7 +758,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                 <h4 className="font-bold mb-2">{member.nome}</h4>
                                 <span className="text-[10px] font-black uppercase text-brand-neon bg-brand-neon/10 px-3 py-1 rounded-full mb-6">{cargos.find(c => c.id === member.cargo)?.cargo}</span>
                                 <div className="text-brand-neon text-sm font-black mb-6">{member.pontos || 0} Inovacoins</div>
-                                <button className="w-full bg-slate-50 dark:bg-white/5 py-2.5 rounded-xl text-xs font-bold hover:bg-brand-neon hover:text-black transition-all">Ver Perfil</button>
+                                <button 
+                                  onClick={() => handleViewMember(member)}
+                                  className="w-full bg-slate-50 dark:bg-white/5 py-2.5 rounded-xl text-xs font-bold hover:bg-brand-neon hover:text-black transition-all"
+                                >
+                                  Ver Perfil
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -569,7 +772,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
             {/* ABAS GOVERNANÇA */}
             {activeTab === 'articles_manage' && (
-                <div className="animate-fade-in-up space-y-8">
+                <div className="animate-fade-in-up space-y-8 pb-12">
                     {!selectedArticlePreview ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {pendingArticles.map(artigo => (
@@ -596,7 +799,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {activeTab === 'users_manage' && (
-                <div className="animate-fade-in-up space-y-8">
+                <div className="animate-fade-in-up space-y-8 pb-12">
                     <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-x-auto">
                         <table className="w-full text-left min-w-[600px]">
                             <thead className="bg-white/5 border-b border-white/5">
@@ -635,7 +838,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                                 {cargos.map(c => <option key={c.id} value={c.id} className="bg-black text-white">{c.cargo}</option>)}
                                             </select>
                                         </td>
-                                        <td className="p-6"><button className="p-2 text-slate-500 hover:text-white"><MoreHorizontal size={18} /></button></td>
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-2">
+                                                <button 
+                                                    onClick={() => handleDeleteUser(member.id, member.nome)}
+                                                    disabled={isUpdatingUser === member.id || member.uuid === user?.uuid}
+                                                    title="Remover Inovador"
+                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-30"
+                                                >
+                                                    {isUpdatingUser === member.id ? (
+                                                        <Loader2 size={18} className="animate-spin" />
+                                                    ) : (
+                                                        <Trash2 size={18} />
+                                                    )}
+                                                </button>
+                                                <button className="p-2 text-slate-500 hover:text-white"><MoreHorizontal size={18} /></button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -645,7 +864,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {activeTab === 'gts_manage' && (
-                <div className="animate-fade-in-up space-y-8">
+                <div className="animate-fade-in-up space-y-8 pb-12">
                     {!selectedGtForManagement ? (
                         <>
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -669,7 +888,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-12">
+                        <div className="space-y-12 pb-12">
                             <button onClick={() => { setSelectedGtForManagement(null); setGtMemberSearch(''); }} className="flex items-center gap-2 text-slate-500 hover:text-brand-neon font-bold transition-all"><ArrowLeft size={18} /> Voltar para lista de GTs</button>
                             
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -746,7 +965,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
             {/* ABA: AGENDA & TICKETS (Sempre acessíveis) */}
             {activeTab === 'agenda' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up pb-12">
                     {availableEvents.map(event => (
                         <div key={event.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden group">
                             <div className="h-44 bg-slate-900 relative">
@@ -760,7 +979,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {activeTab === 'my_events' && (
-                <div className="animate-fade-in-up space-y-8">
+                <div className="animate-fade-in-up space-y-8 pb-12">
                     {myTickets.length === 0 ? <div className="py-32 text-center opacity-50 font-bold">Você não possui tickets ainda.</div> : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             {myTickets.map(ticket => (
@@ -775,7 +994,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
 
             {activeTab === 'articles' && (
-                <div className="animate-fade-in-up space-y-8">
+                <div className="animate-fade-in-up space-y-8 pb-12">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"><h3 className="text-2xl font-black flex items-center gap-3"><PenTool className="text-brand-neon" /> Suas Publicações</h3><button onClick={() => setIsCreatingArticle(true)} className="w-full sm:w-auto bg-brand-neon text-black px-8 py-4 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-brand-neon/20 flex items-center justify-center gap-2"><Plus size={20} /> Novo Artigo</button></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                         {myArticles.map(artigo => (
@@ -789,6 +1008,99 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             )}
         </main>
       </div>
+
+      {/* MODAL DETALHES DO MEMBRO (VER PERFIL) */}
+      {viewingMember && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setViewingMember(null)}></div>
+              <div className="relative bg-white dark:bg-[#0a0a0a] w-full max-w-2xl border border-slate-200 dark:border-white/10 rounded-[3rem] overflow-hidden shadow-2xl animate-fade-in-up">
+                  <div className="h-40 bg-gradient-to-br from-brand-green/30 to-brand-neon/10 relative">
+                      <button onClick={() => setViewingMember(null)} className="absolute top-6 right-6 p-2 bg-black/50 backdrop-blur-md text-white rounded-full hover:bg-white hover:text-black transition-all">
+                          <X size={20} />
+                      </button>
+                  </div>
+                  <div className="px-10 pb-10 relative">
+                      <div className="absolute -top-16 left-10">
+                          <div className="w-32 h-32 rounded-[2rem] border-8 border-white dark:border-[#0a0a0a] overflow-hidden bg-brand-green shadow-xl">
+                              {viewingMember.avatar ? <img src={viewingMember.avatar} className="w-full h-full object-cover" /> : <UserIcon size={48} className="m-auto mt-8 text-black" />}
+                          </div>
+                      </div>
+                      <div className="pt-20 flex justify-between items-start">
+                          <div>
+                              <h3 className="text-3xl font-black text-slate-900 dark:text-white leading-tight">{viewingMember.nome}</h3>
+                              <div className="flex items-center gap-2 mt-2">
+                                  <span className="text-[10px] font-black uppercase text-brand-neon bg-brand-neon/10 px-3 py-1 rounded-full border border-brand-neon/20">{cargos.find(c => c.id === viewingMember.cargo)?.cargo}</span>
+                                  {viewingMember.governanca && <span className="text-[10px] font-black uppercase text-brand-green bg-brand-green/10 px-3 py-1 rounded-full border border-brand-green/20">Governança</span>}
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-2xl font-black text-brand-neon">{viewingMember.pontos || 0}</div>
+                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Inovacoins</div>
+                          </div>
+                      </div>
+
+                      <div className="mt-10 grid grid-cols-2 gap-4">
+                          <div className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 p-6 rounded-3xl">
+                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Artigos Publicados</div>
+                              <div className="text-2xl font-black flex items-center gap-2">
+                                  <FileText size={20} className="text-brand-green" /> {viewingMember.artigos || 0}
+                              </div>
+                          </div>
+                          <div className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 p-6 rounded-3xl">
+                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Membro desde</div>
+                              <div className="text-base font-bold text-slate-700 dark:text-slate-300">
+                                  {new Date(viewingMember.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long' })}
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="mt-10">
+                          <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Grupos de Trabalho</div>
+                          <div className="flex flex-wrap gap-2">
+                              {viewingMember.gts?.length ? viewingMember.gts.map(gtId => (
+                                  <span key={gtId} className="bg-white/10 text-white text-[11px] font-bold px-4 py-2 rounded-xl border border-white/10">
+                                      {gts.find(g => g.id === gtId)?.gt || 'GT...'}
+                                  </span>
+                              )) : <span className="text-sm text-slate-500 italic">Nenhum GT vinculado.</span>}
+                          </div>
+                      </div>
+
+                      <div className="mt-12 pt-8 border-t border-slate-200 dark:border-white/10">
+                          {isLoadingMemberDetails ? (
+                              <div className="flex items-center justify-center py-4">
+                                  <Loader2 size={24} className="animate-spin text-brand-neon" />
+                              </div>
+                          ) : viewingMemberCompany ? (
+                              <div className="animate-fade-in-up flex flex-col sm:flex-row items-center justify-between gap-6 p-6 bg-brand-neon/10 border border-brand-neon/30 rounded-3xl">
+                                  <div className="flex items-center gap-4">
+                                      <div className="w-14 h-14 bg-white rounded-2xl p-1 shadow-lg shadow-black/20">
+                                          {viewingMemberCompany.logo ? <img src={viewingMemberCompany.logo} className="w-full h-full object-contain" /> : <Building2 size={24} className="m-auto mt-3 text-brand-green" />}
+                                      </div>
+                                      <div>
+                                          <div className="text-[10px] font-black text-brand-neon uppercase tracking-widest">Responsável por</div>
+                                          <div className="text-lg font-black text-slate-900 dark:text-white leading-tight">{viewingMemberCompany.nome}</div>
+                                      </div>
+                                  </div>
+                                  <button 
+                                    onClick={() => {
+                                        onViewCompany(viewingMemberCompany);
+                                        setViewingMember(null);
+                                    }}
+                                    className="w-full sm:w-auto px-6 py-3 bg-brand-neon text-black rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-xl shadow-brand-neon/20"
+                                  >
+                                      <ExternalLink size={16} /> Ver Empresa
+                                  </button>
+                              </div>
+                          ) : (
+                              <div className="text-center py-4 text-slate-500 text-sm font-medium italic">
+                                  Este membro ainda não possui uma empresa vinculada.
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* MODAL EDITOR DE ARTIGO COMPLETO */}
       {isCreatingArticle && (
