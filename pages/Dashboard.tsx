@@ -10,9 +10,9 @@ import {
   Info, Crown, Boxes, UserMinus, ArrowLeft, ChevronDown, UserCheck, ShieldAlert,
   UserCog, ClipboardCheck, BookOpen, Trash, PenTool, ImageOff, Link, Type, X, Loader2,
   TrendingUp, Star, Globe, Zap, MoreHorizontal, UserPlus2, UserPlus as UserPlusIcon,
-  Menu as MenuIcon
+  Menu as MenuIcon, Trophy, History, Coins
 } from 'lucide-react';
-import { User, GT, Artigo, Evento, Inscricao, Cargo } from '../types';
+import { User, GT, Artigo, Evento, Inscricao, Cargo, PontuacaoRegra, PontuacaoLog } from '../types';
 import { supabase } from '../services/supabase';
 
 interface DashboardProps {
@@ -21,7 +21,7 @@ interface DashboardProps {
   onProfileClick: () => void;
 }
 
-type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage';
+type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage' | 'gamification';
 
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -46,6 +46,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [selectedGtForManagement, setSelectedGtForManagement] = useState<GT | null>(null);
   const [gtMemberSearch, setGtMemberSearch] = useState('');
 
+  // Gamification States
+  const [rules, setRules] = useState<PontuacaoRegra[]>([]);
+  const [logs, setLogs] = useState<PontuacaoLog[]>([]);
+  const [selectedUserForPoints, setSelectedUserForPoints] = useState<User | null>(null);
+  const [isAwardingPoints, setIsAwardingPoints] = useState(false);
+
   // Editor State
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const [articleForm, setArticleForm] = useState({ titulo: '', subtitulo: '', conteudo: '', capa: '', gt_id: 0, tags: [] as string[] });
@@ -65,14 +71,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     if (!user) return;
     setLoading(true);
     try {
-      const [gtsRes, cargosRes] = await Promise.all([
+      const [gtsRes, cargosRes, rulesRes] = await Promise.all([
         supabase.from('gts').select('*').order('gt'),
-        supabase.from('cargos').select('*')
+        supabase.from('cargos').select('*'),
+        supabase.from('pontuacao_regras').select('*').order('valor', { ascending: false })
       ]);
       if (gtsRes.data) setGts(gtsRes.data);
       if (cargosRes.data) setCargos(cargosRes.data);
+      if (rulesRes.data) setRules(rulesRes.data);
 
-      const { data: userData } = await supabase.from('users').select('*').order('artigos', { ascending: false });
+      const { data: userData } = await supabase.from('users').select('*').order('pontos', { ascending: false });
       let currentMembers: User[] = [];
       if (userData) {
         currentMembers = userData;
@@ -97,11 +105,60 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 author_name: currentMembers.find(m => m.uuid === p.autor)?.nome || 'Inovador'
             })));
         }
+
+        const { data: logData } = await supabase
+          .from('pontuacao_logs')
+          .select('*, user:users(nome), regra:pontuacao_regras(acao)')
+          .order('created_at', { ascending: false })
+          .limit(20);
+        
+        if (logData) {
+          setLogs(logData.map(l => ({
+            ...l,
+            user_nome: l.user?.nome,
+            regra_acao: l.regra?.acao
+          })));
+        }
       }
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }, [user]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleAwardPoints = async (regra: PontuacaoRegra) => {
+    if (!selectedUserForPoints || !user) return;
+    setIsAwardingPoints(true);
+    try {
+      // 1. Atualiza pontos do usuário
+      const newTotal = (selectedUserForPoints.pontos || 0) + regra.valor;
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ pontos: newTotal })
+        .eq('id', selectedUserForPoints.id);
+      
+      if (userError) throw userError;
+
+      // 2. Registra o Log
+      const { error: logError } = await supabase
+        .from('pontuacao_logs')
+        .insert([{
+          user_id: selectedUserForPoints.id,
+          regra_id: regra.id,
+          pontos_atribuidos: regra.valor,
+          atribuido_por: user.uuid
+        }]);
+      
+      if (logError) throw logError;
+
+      showNotification('success', `${regra.valor} pontos atribuídos a ${selectedUserForPoints.nome}!`);
+      setSelectedUserForPoints(null);
+      fetchData();
+    } catch (e) {
+      showNotification('error', 'Erro ao atribuir pontos.');
+    } finally {
+      setIsAwardingPoints(false);
+    }
+  };
 
   const handleToggleGovernanca = async (userId: number, currentStatus: boolean) => {
       setIsUpdatingUser(userId);
@@ -151,8 +208,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (error) throw error;
       const article = pendingArticles.find(a => a.id === id);
       if (article) {
-          const { data: author } = await supabase.from('users').select('artigos').eq('uuid', article.autor).single();
-          if (author) await supabase.from('users').update({ artigos: (author.artigos || 0) + 1 }).eq('uuid', article.autor);
+          const { data: author } = await supabase.from('users').select('artigos, pontos').eq('uuid', article.autor).single();
+          if (author) {
+            // Ao aprovar artigo, ganha pontos automaticamente se a regra existir (id 1 presumido como Artigo)
+            const pontosArtigo = rules.find(r => r.acao.includes('Artigo'))?.valor || 50;
+            await supabase.from('users').update({ 
+              artigos: (author.artigos || 0) + 1,
+              pontos: (author.pontos || 0) + pontosArtigo
+            }).eq('uuid', article.autor);
+          }
       }
       showNotification('success', 'Artigo aprovado e publicado!');
       setSelectedArticlePreview(null);
@@ -230,6 +294,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
              <>
                 <div className="h-px bg-slate-200 dark:bg-white/10 my-6 mx-4"></div>
                 <div className="px-5 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Governança</div>
+                <button onClick={() => handleTabChange('gamification')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'gamification' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                  <Trophy size={22} /> <span>Gamificação</span>
+                </button>
                 <button onClick={() => handleTabChange('articles_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <ClipboardCheck size={22} /> <span>Aprovação Artigos</span>
                 </button>
@@ -262,6 +329,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
              <>
                 <div className="h-px bg-slate-200 dark:bg-white/10 my-6 mx-4"></div>
                 <div className="px-5 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Governança</div>
+                <button onClick={() => handleTabChange('gamification')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'gamification' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                  <Trophy size={22} /> <span>Gamificação</span>
+                </button>
                 <button onClick={() => handleTabChange('articles_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <ClipboardCheck size={22} /> <span>Aprovação Artigos</span>
                 </button>
@@ -284,7 +354,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-24 flex items-center justify-between px-6 md:px-10 flex-shrink-0 border-b border-slate-100 dark:border-white/5">
           <div className="flex items-center gap-4">
-            {/* Drawer Toggle Button (Visible on Mobile) */}
             <button 
               onClick={() => setIsDrawerOpen(true)}
               className="md:hidden p-3 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-brand-neon hover:text-black transition-all"
@@ -292,7 +361,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               <MenuIcon size={24} />
             </button>
             <h2 className="text-xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white capitalize">
-              {activeTab === 'articles_manage' ? 'Fila de Curadoria' : activeTab === 'users_manage' ? 'Controle de Acessos' : activeTab === 'gts_manage' ? (selectedGtForManagement ? `Membros: ${selectedGtForManagement.gt}` : 'Grupos de Trabalho') : activeTab.replace('_', ' ')}
+              {activeTab === 'gamification' ? 'Gamificação' : activeTab === 'articles_manage' ? 'Fila de Curadoria' : activeTab === 'users_manage' ? 'Controle de Acessos' : activeTab === 'gts_manage' ? (selectedGtForManagement ? `Membros: ${selectedGtForManagement.gt}` : 'Grupos de Trabalho') : activeTab.replace('_', ' ')}
             </h2>
           </div>
           <div className="flex items-center gap-4">
@@ -319,14 +388,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div className="bg-white dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
-                            <FileText className="text-brand-neon mb-6" size={32} />
-                            <div className="text-4xl font-black mb-2">{myArticles.length}</div>
-                            <div className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Seus Artigos</div>
+                            <Award className="text-brand-neon mb-6" size={32} />
+                            <div className="text-4xl font-black mb-2">{user?.pontos || 0}</div>
+                            <div className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Seus Pontos</div>
                         </div>
                         <div className="bg-white dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
-                            <Award className="text-brand-green mb-6" size={32} />
+                            <TrendingUp className="text-brand-green mb-6" size={32} />
                             <div className="text-4xl font-black mb-2">#{members.findIndex(m => m.uuid === user?.uuid) + 1}</div>
-                            <div className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Sua Posição</div>
+                            <div className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">No Ranking</div>
                         </div>
                         <div className="bg-white dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
                             <Ticket className="text-cyan-400 mb-6" size={32} />
@@ -350,11 +419,131 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                     </div>
                                     <div><div className="font-bold text-base md:text-lg">{member.nome}</div><div className="text-xs text-slate-500">{cargos.find(c => c.id === member.cargo)?.cargo}</div></div>
                                 </div>
-                                <div className="text-right"><div className="text-xl md:text-2xl font-black text-brand-neon">{member.artigos}</div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Artigos</div></div>
+                                <div className="text-right"><div className="text-xl md:text-2xl font-black text-brand-neon">{member.pontos || 0}</div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Inovacoins</div></div>
                             </div>
                         ))}
                     </div>
                 </div>
+            )}
+
+            {/* ABA: GAMIFICATION (CENTRO DE PONTUAÇÃO) */}
+            {activeTab === 'gamification' && (
+              <div className="animate-fade-in-up space-y-12">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  {/* SEÇÃO ATRIBUIR PONTOS */}
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-3 bg-brand-neon/10 rounded-2xl text-brand-neon"><Coins size={24} /></div>
+                      <h3 className="text-2xl font-black">Atribuição Manual</h3>
+                    </div>
+                    
+                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] space-y-6">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">1. Selecione o Membro</label>
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                          <input 
+                            type="text" 
+                            placeholder="Buscar inovador..." 
+                            value={memberSearch}
+                            onChange={(e) => setMemberSearch(e.target.value)}
+                            className="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm focus:border-brand-neon outline-none"
+                          />
+                        </div>
+                        {memberSearch && !selectedUserForPoints && (
+                          <div className="mt-2 bg-slate-900 border border-white/10 rounded-xl overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
+                            {members.filter(m => m.nome.toLowerCase().includes(memberSearch.toLowerCase())).map(m => (
+                              <button key={m.id} onClick={() => { setSelectedUserForPoints(m); setMemberSearch(''); }} className="w-full flex items-center gap-3 p-3 hover:bg-brand-neon/10 text-left border-b border-white/5 last:border-0">
+                                <div className="w-8 h-8 rounded-full bg-brand-green/20 overflow-hidden">{m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <UserIcon size={14} className="m-auto mt-2" />}</div>
+                                <div><div className="text-sm font-bold">{m.nome}</div><div className="text-[10px] text-slate-500">{m.pontos} Inovacoins</div></div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {selectedUserForPoints && (
+                          <div className="mt-4 p-4 bg-brand-neon/5 border border-brand-neon/20 rounded-xl flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-brand-neon text-black flex items-center justify-center font-bold">{selectedUserForPoints.nome.charAt(0)}</div>
+                              <div><div className="font-bold">{selectedUserForPoints.nome}</div><div className="text-xs text-brand-neon">Membro selecionado</div></div>
+                            </div>
+                            <button onClick={() => setSelectedUserForPoints(null)} className="text-slate-500 hover:text-white"><X size={18} /></button>
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedUserForPoints && (
+                        <div className="animate-fade-in-up">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">2. Selecione a Ação</label>
+                          <div className="grid grid-cols-1 gap-3">
+                            {rules.map(rule => (
+                              <button 
+                                key={rule.id} 
+                                onClick={() => handleAwardPoints(rule)}
+                                disabled={isAwardingPoints}
+                                className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl hover:border-brand-neon hover:bg-brand-neon/10 transition-all group disabled:opacity-50"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white/5 rounded-lg group-hover:bg-brand-neon/20"><Plus size={16} className="text-brand-neon" /></div>
+                                  <span className="font-bold text-sm">{rule.acao}</span>
+                                </div>
+                                <span className="text-brand-neon font-black text-sm">+{rule.valor}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* SEÇÃO HISTÓRICO */}
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-3 bg-brand-green/10 rounded-2xl text-brand-green"><History size={24} /></div>
+                      <h3 className="text-2xl font-black">Histórico Recente</h3>
+                    </div>
+                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden">
+                      <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                        {logs.map(log => (
+                          <div key={log.id} className="p-6 border-b border-white/5 last:border-0 flex items-center justify-between group">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:bg-brand-neon group-hover:text-black transition-all">
+                                <Award size={18} />
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold">{log.user_nome}</div>
+                                <div className="text-[10px] text-slate-500 uppercase tracking-widest">{log.regra_acao}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-brand-neon font-black">+{log.pontos_atribuidos}</div>
+                              <div className="text-[9px] text-slate-600 font-bold uppercase">{new Date(log.created_at).toLocaleDateString('pt-BR')}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {logs.length === 0 && <div className="p-12 text-center text-slate-500 font-bold">Nenhum registro de pontuação.</div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* GESTÃO DE REGRAS */}
+                <div className="space-y-8">
+                   <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                      <h3 className="text-2xl font-black flex items-center gap-3"><Settings className="text-slate-400" /> Tabela de Preços (Regras)</h3>
+                      <button className="bg-white/5 hover:bg-white/10 text-xs font-black px-4 py-2 rounded-xl border border-white/10 transition-all">Editar Valores</button>
+                   </div>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                      {rules.map(rule => (
+                        <div key={rule.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-6 rounded-[2rem] flex flex-col items-center text-center group">
+                          <div className="w-12 h-12 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon mb-4 group-hover:scale-110 transition-transform"><Plus size={20} /></div>
+                          <h4 className="font-bold text-sm mb-1">{rule.acao}</h4>
+                          <span className="text-2xl font-black text-white">{rule.valor}</span>
+                          <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-1">Inovacoins</span>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+              </div>
             )}
 
             {/* ABA: MEMBROS */}
@@ -370,6 +559,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                 <div className="w-20 h-20 rounded-full overflow-hidden bg-brand-green/10 mb-6">{member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={32} className="m-auto mt-5 text-slate-400" />}</div>
                                 <h4 className="font-bold mb-2">{member.nome}</h4>
                                 <span className="text-[10px] font-black uppercase text-brand-neon bg-brand-neon/10 px-3 py-1 rounded-full mb-6">{cargos.find(c => c.id === member.cargo)?.cargo}</span>
+                                <div className="text-brand-neon text-sm font-black mb-6">{member.pontos || 0} Inovacoins</div>
                                 <button className="w-full bg-slate-50 dark:bg-white/5 py-2.5 rounded-xl text-xs font-bold hover:bg-brand-neon hover:text-black transition-all">Ver Perfil</button>
                             </div>
                         ))}
@@ -616,7 +806,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       <div className="flex-1 flex flex-col">
                           <div className="px-8 py-4 bg-white/[0.02] border-b border-white/10 flex gap-2 overflow-x-auto"><button onClick={() => execCommand('bold')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon flex-shrink-0"><Bold size={18} /></button><button onClick={() => execCommand('formatBlock', 'h2')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon flex-shrink-0"><Heading1 size={18} /></button></div>
                           <div className="flex-1 p-6 md:p-14 overflow-y-auto bg-black/20">
-                            {/* Corrected: Use setArticleForm instead of setFormData */}
                             <input type="text" value={articleForm.titulo} onChange={(e) => setArticleForm(prev => ({ ...prev, titulo: e.target.value }))} placeholder="Título do Artigo" className="w-full bg-transparent border-none focus:ring-0 text-2xl md:text-4xl font-black mb-4"/>
                             <input type="text" value={articleForm.subtitulo} onChange={(e) => setArticleForm(prev => ({ ...prev, subtitulo: e.target.value }))} placeholder="Subtítulo..." className="w-full bg-transparent border-none focus:ring-0 text-lg md:text-xl font-light mb-12 text-slate-500"/>
                             <div ref={editorRef} contentEditable suppressContentEditableWarning={true} className="prose prose-invert max-w-none focus:outline-none min-h-[300px] text-base md:text-lg leading-relaxed text-slate-300"></div>

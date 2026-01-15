@@ -15,20 +15,19 @@ export interface User {
   nome: string;
   email: string;
   uuid: string;
-  gts?: number[]; // Alterado para refletir a coluna ARRAY do banco
+  gts?: number[];
   cargo?: number;
   governanca?: boolean;
-  avatar?: string; // Foto de perfil
+  avatar?: string;
   artigos: number;
-  // Computed client-side for demo, or fetched if schema expands
-  pontos?: number; 
+  pontos: number; // Agora obrigatório do banco
   nivel?: string;
 }
 
 export interface Artigo {
   id: number;
   created_at: string;
-  autor: string; // uuid
+  autor: string;
   conteudo: string;
   capa: string;
   aprovado: boolean;
@@ -39,12 +38,11 @@ export interface Artigo {
 
 export interface Empresa {
   id: number;
-  responsavel: string; // uuid
+  responsavel: string;
   nome: string;
   cnpj: string;
   cidade: string;
   uf: string;
-  // Novos campos para Landing Page
   slogan?: string;
   descricao?: string;
   logo?: string;
@@ -52,38 +50,51 @@ export interface Empresa {
   site?: string;
   instagram?: string;
   linkedin?: string;
-  whatsapp?: string; // Novo campo
+  whatsapp?: string;
   cor_primaria?: string;
 }
 
-export interface PontuacaoAcao {
+export interface PontuacaoRegra {
   id: number;
   acao: string;
-  pontuacao: number;
+  valor: number;
+  icone?: string;
 }
 
-// TIPOS DE EVENTOS ATUALIZADOS
+export interface PontuacaoLog {
+  id: number;
+  created_at: string;
+  user_id: number;
+  regra_id: number;
+  pontos_atribuidos: number;
+  atribuido_por: string;
+  motivo?: string;
+  // Joins
+  user_nome?: string;
+  regra_acao?: string;
+}
+
 export interface Evento {
   id: number;
   created_at?: string;
-  criado_por?: string; // uuid
+  criado_por?: string;
   titulo: string;
   descricao?: string;
-  data_inicio: string; // ISO String
-  data_fim?: string; // ISO String
+  data_inicio: string;
+  data_fim?: string;
   local: string;
-  tipo: string; // 'Workshop', 'Meetup', etc
+  tipo: string;
   imagem_capa?: string;
   vagas?: number;
 }
 
 export interface Inscricao {
-  id: string; // UUID do Ticket
+  id: string;
   created_at: string;
   evento_id: number;
   user_id: number;
   status: 'confirmado' | 'checkin_realizado' | 'cancelado';
   checkin_at?: string;
-  evento?: Evento; // Para join
-  user?: User; // Para join na governança
+  evento?: Evento;
+  user?: User;
 }
