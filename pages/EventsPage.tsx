@@ -3,7 +3,7 @@ import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
 import { supabase } from '../services/supabase';
 import { Evento, User } from '../types';
-import { Calendar, MapPin, Clock, Tag, Ticket, Loader2, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, Clock, Tag, Ticket, Loader2, ArrowRight, Lock, Unlock } from 'lucide-react';
 
 interface EventsPageProps {
   onLoginClick: () => void;
@@ -109,10 +109,15 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onLoginClick, onNavigate
                                             <Calendar size={48} className="text-white/20" />
                                         </div>
                                     )}
-                                    <div className="absolute top-4 left-4">
+                                    <div className="absolute top-4 left-4 flex gap-2">
                                         <span className="bg-black/60 backdrop-blur-md border border-white/10 text-brand-neon text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                                             {evt.tipo}
                                         </span>
+                                        {evt.exclusivo && (
+                                            <span className="bg-black/80 backdrop-blur-md border border-white/20 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+                                                <Lock size={10} /> Exclusivo
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black to-transparent">
                                          <div className="flex items-center gap-2 text-white font-mono font-bold">
@@ -129,7 +134,10 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onLoginClick, onNavigate
                                 </div>
                                 
                                 <div className="p-6 flex-1 flex flex-col">
-                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-2">{evt.titulo}</h3>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white line-clamp-2">{evt.titulo}</h3>
+                                        {!evt.exclusivo && <div className="p-1.5 bg-brand-green/10 rounded-full text-brand-green" title="Aberto ao Público"><Unlock size={14} /></div>}
+                                    </div>
                                     <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3 mb-6 font-light">{evt.descricao}</p>
                                     
                                     <div className="mt-auto pt-4 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">

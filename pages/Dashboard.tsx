@@ -8,12 +8,15 @@ import {
   User as UserIcon, Calendar, MapPin, Ticket, QrCode, ScanLine, CalendarRange, 
   ArrowRight, Sun, Moon, Plus, Camera, Search as SearchIcon, Users2, CheckSquare,
   Info, Crown, Boxes, UserMinus, ArrowLeft, ChevronDown, UserCheck, ShieldAlert,
-  UserCog, ClipboardCheck, BookOpen, Trash, PenTool, ImageOff, Link, Type, X, Loader2,
+  UserCog, ClipboardCheck, BookOpen, Trash, PenTool, ImageOff, Link as LinkIcon, Type, X, Loader2,
   TrendingUp, Star, Globe, Zap, MoreHorizontal, UserPlus2, UserPlus as UserPlusIcon,
-  Menu as MenuIcon, Trophy, History, Coins, Edit3, Save as SaveIcon, Building2, ExternalLink
+  Menu as MenuIcon, Trophy, History, Coins, Edit3, Save as SaveIcon, Building2, ExternalLink,
+  Unlock, Lock, ToggleLeft, ToggleRight, Image as ImageIconLucide, Download, Scan
 } from 'lucide-react';
 import { User, GT, Artigo, Evento, Inscricao, Cargo, PontuacaoRegra, PontuacaoLog, Empresa } from '../types';
 import { supabase } from '../services/supabase';
+import QRCode from 'react-qr-code';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -22,7 +25,7 @@ interface DashboardProps {
   onViewCompany: (empresa: Empresa) => void;
 }
 
-type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage' | 'gamification';
+type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage' | 'gamification' | 'checkin';
 
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick, onViewCompany }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -39,7 +42,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [memberSearch, setMemberSearch] = useState('');
   const [availableEvents, setAvailableEvents] = useState<Evento[]>([]);
   const [myTickets, setMyTickets] = useState<Inscricao[]>([]);
+  const [selectedTicketForView, setSelectedTicketForView] = useState<Inscricao | null>(null);
   
+  // Evento Detalhes
+  const [selectedEventForDetail, setSelectedEventForDetail] = useState<Evento | null>(null);
+  const [isRegisteringEvent, setIsRegisteringEvent] = useState(false);
+
+  // Check-in Scanner
+  const [scannerActive, setScannerActive] = useState(false);
+  const [isProcessingCheckin, setIsProcessingCheckin] = useState(false);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  // Gestão de Eventos (Governança)
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [isUploadingEventCover, setIsUploadingEventCover] = useState(false);
+  const eventCoverInputRef = useRef<HTMLInputElement>(null);
+  const [eventForm, setEventForm] = useState<Partial<Evento>>({
+      titulo: '',
+      descricao: '',
+      data_inicio: '',
+      local: '',
+      tipo: 'Workshop',
+      vagas: 100,
+      exclusivo: true,
+      imagem_capa: ''
+  });
+
   // Detalhes do Membro
   const [viewingMember, setViewingMember] = useState<User | null>(null);
   const [viewingMemberCompany, setViewingMemberCompany] = useState<Empresa | null>(null);
@@ -66,7 +95,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const editorRef = useRef<HTMLDivElement>(null);
   const [isSubmittingArticle, setIsSubmittingArticle] = useState(false);
 
-  // Memoized current user data from the members list to ensure live points
   const currentUserData = useMemo(() => {
     return members.find(m => m.uuid === user?.uuid) || user;
   }, [members, user]);
@@ -137,6 +165,287 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   }, [user]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // QR Code Scanner Logic
+  useEffect(() => {
+    if (activeTab === 'checkin' && scannerActive && !scannerRef.current) {
+        scannerRef.current = new Html5QrcodeScanner(
+            "reader", 
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            /* verbose= */ false
+        );
+        scannerRef.current.render(onScanSuccess, onScanError);
+    }
+
+    return () => {
+        if (scannerRef.current) {
+            scannerRef.current.clear().catch(e => console.error("Scanner clear error", e));
+            scannerRef.current = null;
+        }
+    };
+  }, [activeTab, scannerActive]);
+
+  const onScanSuccess = async (decodedText: string) => {
+      if (isProcessingCheckin) return;
+      setIsProcessingCheckin(true);
+      
+      try {
+          // O QR Code deve conter o ID da inscrição (uuid)
+          const { data: inscricao, error: fetchError } = await supabase
+            .from('inscricoes')
+            .select('*, user:users(*), evento:eventos(*)')
+            .eq('id', decodedText)
+            .single();
+
+          if (fetchError || !inscricao) {
+              showNotification('error', 'Inscrição não encontrada ou inválida.');
+              setIsProcessingCheckin(false);
+              return;
+          }
+
+          if (inscricao.status === 'checkin_realizado') {
+              showNotification('error', `Check-in já realizado para ${inscricao.user?.nome}`);
+              setIsProcessingCheckin(false);
+              return;
+          }
+
+          // Realiza o Check-in
+          const { error: updateError } = await supabase
+            .from('inscricoes')
+            .update({ status: 'checkin_realizado', checkin_at: new Date().toISOString() })
+            .eq('id', decodedText);
+
+          if (updateError) throw updateError;
+
+          // Atribui pontos
+          const regraCheckin = rules.find(r => r.acao.toLowerCase().includes('check-in')) || rules[0];
+          const newTotal = (inscricao.user?.pontos || 0) + regraCheckin.valor;
+
+          await supabase.from('users').update({ pontos: newTotal }).eq('id', inscricao.user_id);
+          await supabase.from('pontuacao_logs').insert([{
+              user_id: inscricao.user_id,
+              regra_id: regraCheckin.id,
+              pontos_atribuidos: regraCheckin.valor,
+              atribuido_por: user?.uuid
+          }]);
+
+          showNotification('success', `Check-in de ${inscricao.user?.nome} realizado! +${regraCheckin.valor} Coins`);
+          fetchData();
+          
+      } catch (e) {
+          showNotification('error', 'Erro ao processar validação.');
+      } finally {
+          // Delay para evitar scans múltiplos imediatos
+          setTimeout(() => setIsProcessingCheckin(false), 2000);
+      }
+  };
+
+  const onScanError = (err: any) => {
+      // Ignora erros de "nenhum qr encontrado no frame"
+  };
+
+  const handleDownloadTicket = () => {
+    if (!selectedTicketForView) return;
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 1200;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Background
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Decorative gradient circle
+    const grad = ctx.createRadialGradient(400, 200, 0, 400, 200, 600);
+    grad.addColorStop(0, '#10b98133');
+    grad.addColorStop(1, '#00000000');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Border
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(40, 40, 720, 1120);
+
+    // Text Content
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 60px Montserrat';
+    ctx.textAlign = 'center';
+    ctx.fillText('CONVITE INOVAP', 400, 150);
+
+    ctx.font = 'bold 80px Montserrat';
+    const titleLines = wrapText(ctx, selectedTicketForView.evento?.titulo || '', 600);
+    titleLines.forEach((line, i) => {
+        ctx.fillText(line, 400, 300 + (i * 90));
+    });
+
+    const startY = 300 + (titleLines.length * 90);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 30px Montserrat';
+    ctx.fillText('INFORMAÇÕES DO EVENTO', 400, startY + 50);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '500 40px Montserrat';
+    ctx.fillText(`Data: ${new Date(selectedTicketForView.evento?.data_inicio || '').toLocaleDateString('pt-BR')}`, 400, startY + 120);
+    ctx.fillText(`Local: ${selectedTicketForView.evento?.local}`, 400, startY + 180);
+    ctx.fillText(`Tipo: ${selectedTicketForView.evento?.tipo}`, 400, startY + 240);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 45px Montserrat';
+    ctx.fillText(user?.nome || '', 400, startY + 340);
+
+    // QR Code rendering
+    const qrSvg = document.getElementById('qr-code-svg');
+    if (qrSvg) {
+        const svgData = new XMLSerializer().serializeToString(qrSvg);
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 200, startY + 400, 400, 400);
+            
+            const link = document.createElement('a');
+            link.download = `ticket-${selectedTicketForView.evento?.titulo}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+        img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+    }
+  };
+
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + " " + word).width;
+        if (width < maxWidth) {
+            currentLine += " " + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    lines.push(currentLine);
+    return lines;
+  };
+
+  const handleRegisterEvent = async (evento: Evento) => {
+      if (!user) return;
+      setIsRegisteringEvent(true);
+      try {
+          const { error } = await supabase.from('inscricoes').insert([{
+              evento_id: evento.id,
+              user_id: user.id,
+              status: 'confirmado'
+          }]);
+
+          if (error) {
+              if (error.code === '23505') {
+                  showNotification('error', 'Você já está inscrito neste evento!');
+              } else {
+                  throw error;
+              }
+          } else {
+              showNotification('success', `Inscrição confirmada para ${evento.titulo}!`);
+              setSelectedEventForDetail(null);
+              fetchData();
+          }
+      } catch (e: any) {
+          showNotification('error', 'Erro ao realizar inscrição.');
+      } finally {
+          setIsRegisteringEvent(false);
+      }
+  };
+
+  const handleEventCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showNotification('error', 'A imagem deve ter no máximo 5MB.');
+      return;
+    }
+
+    setIsUploadingEventCover(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `evento_capa_${Date.now()}.${fileExt}`;
+      const filePath = `eventos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('imagensBlog')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('imagensBlog').getPublicUrl(filePath);
+      if (!data.publicUrl) throw new Error('Erro ao obter URL pública.');
+
+      setEventForm(prev => ({ ...prev, imagem_capa: data.publicUrl }));
+      showNotification('success', 'Imagem carregada com sucesso!');
+    } catch (error: any) {
+      showNotification('error', `Erro upload: ${error.message || 'Falha na conexão'}`);
+    } finally {
+      setIsUploadingEventCover(false);
+      if (eventCoverInputRef.current) eventCoverInputRef.current.value = '';
+    }
+  };
+
+  const handleSubmitEvent = async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
+      
+      if (!eventForm.titulo || !eventForm.data_inicio || !eventForm.local) {
+          showNotification('error', 'Preencha os campos obrigatórios (Título, Data e Local)');
+          return;
+      }
+
+      setIsSubmittingEvent(true);
+      try {
+          if (!user) {
+              showNotification('error', 'Usuário não autenticado.');
+              return;
+          }
+
+          const eventPayload = {
+              titulo: eventForm.titulo,
+              descricao: eventForm.descricao || 'Sem descrição.', 
+              data_inicio: eventForm.data_inicio,
+              local: eventForm.local,
+              tipo: eventForm.tipo,
+              vagas: eventForm.vagas || 100,
+              imagem_capa: eventForm.imagem_capa || null,
+              exclusivo: !!eventForm.exclusivo, 
+              criado_por: user.uuid
+          };
+
+          const { error } = await supabase.from('eventos').insert([eventPayload]);
+
+          if (error) throw error;
+
+          showNotification('success', 'Evento publicado com sucesso!');
+          setIsCreatingEvent(false);
+          setEventForm({
+              titulo: '',
+              descricao: '',
+              data_inicio: '',
+              local: '',
+              tipo: 'Workshop',
+              vagas: 100,
+              exclusivo: true,
+              imagem_capa: ''
+          });
+          await fetchData();
+      } catch (err: any) {
+          const errorMessage = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+          showNotification('error', `Erro ao criar evento: ${errorMessage}`);
+      } finally {
+          setIsSubmittingEvent(false);
+      }
+  };
 
   const handleAwardPoints = async (regra: PontuacaoRegra) => {
     if (!selectedUserForPoints || !user) {
@@ -333,16 +642,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       
       {notification && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[200] animate-fade-in-up px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border bg-brand-green/20 border-brand-green text-brand-neon font-bold flex items-center gap-2">
-            <CheckCircle size={18} /> {notification.message}
+            {notification.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />} {notification.message}
         </div>
-      )}
-
-      {/* Mobile Drawer Overlay */}
-      {isDrawerOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] md:hidden transition-opacity duration-300"
-          onClick={() => setIsDrawerOpen(false)}
-        />
       )}
 
       {/* Mobile Drawer Panel */}
@@ -369,6 +670,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <button onClick={() => handleTabChange('gamification')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'gamification' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <Trophy size={22} /> <span>Gamificação</span>
                 </button>
+                <button onClick={() => handleTabChange('checkin')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'checkin' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                  <ScanLine size={22} /> <span>Validar Check-in</span>
+                </button>
                 <button onClick={() => handleTabChange('articles_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <ClipboardCheck size={22} /> <span>Aprovação Artigos</span>
                 </button>
@@ -389,7 +693,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       </div>
 
       {/* Desktop Sidebar */}
-      <div className="w-72 bg-slate-50 dark:bg-white/[0.03] backdrop-blur-xl border-r border-slate-200 dark:border-white/5 flex-shrink-0 hidden md:flex flex-col z-20 m-4 rounded-[2.5rem] h-[calc(100vh-2rem)] shadow-sm">
+      <div className="w-72 bg-slate-50 dark:bg-white/[0.03] backdrop-blur-xl border-r border-slate-200 dark:border-white/5 flex-shrink-0 hidden md:flex flex-col m-4 rounded-[2.5rem] h-[calc(100vh-2rem)] shadow-sm">
         <div className="h-24 flex items-center px-8 cursor-pointer flex-shrink-0" onClick={() => handleTabChange('overview')}><Logo /></div>
         <div className="flex-1 py-4 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           {sidebarItems.map((item) => (
@@ -403,6 +707,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <div className="px-5 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Governança</div>
                 <button onClick={() => handleTabChange('gamification')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'gamification' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <Trophy size={22} /> <span>Gamificação</span>
+                </button>
+                <button onClick={() => handleTabChange('checkin')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'checkin' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
+                  <ScanLine size={22} /> <span>Validar Check-in</span>
                 </button>
                 <button onClick={() => handleTabChange('articles_manage')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold ${activeTab === 'articles_manage' ? 'bg-brand-neon text-black' : 'text-slate-500 hover:text-white'}`}>
                   <ClipboardCheck size={22} /> <span>Aprovação Artigos</span>
@@ -433,7 +740,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               <MenuIcon size={24} />
             </button>
             <h2 className="text-xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white capitalize">
-              {activeTab === 'gamification' ? 'Gamificação' : activeTab === 'articles_manage' ? 'Fila de Curadoria' : activeTab === 'users_manage' ? 'Controle de Acessos' : activeTab === 'gts_manage' ? (selectedGtForManagement ? `Membros: ${selectedGtForManagement.gt}` : 'Grupos de Trabalho') : activeTab.replace('_', ' ')}
+              {activeTab === 'gamification' ? 'Gamificação' : activeTab === 'articles_manage' ? 'Fila de Curadoria' : activeTab === 'users_manage' ? 'Controle de Acessos' : activeTab === 'gts_manage' ? (selectedGtForManagement ? `Membros: ${selectedGtForManagement.gt}` : 'Grupos de Trabalho') : activeTab === 'my_events' ? 'Meus Tickets' : activeTab === 'checkin' ? 'Check-in de Eventos' : activeTab.replace('_', ' ')}
             </h2>
           </div>
           <div className="flex items-center gap-4">
@@ -500,21 +807,105 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 </div>
             )}
 
+            {/* ABA: CHECK-IN (GOVERNANÇA) */}
+            {activeTab === 'checkin' && (
+                <div className="animate-fade-in-up space-y-8 pb-12 flex flex-col items-center max-w-2xl mx-auto">
+                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[3rem] w-full text-center">
+                        <div className="p-4 bg-brand-neon/10 rounded-full w-20 h-20 flex items-center justify-center text-brand-neon mx-auto mb-6">
+                            <Scan size={40} />
+                        </div>
+                        <h3 className="text-2xl font-black mb-2">Validador de Convites</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">Escaneie o QR Code do inovador para validar a participação e atribuir pontos.</p>
+                        
+                        <div className="relative rounded-[2rem] overflow-hidden border-4 border-slate-200 dark:border-white/10 bg-black aspect-square max-w-[400px] mx-auto">
+                            {!scannerActive ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 gap-6">
+                                    <Camera size={48} className="text-slate-700" />
+                                    <button 
+                                        onClick={() => setScannerActive(true)}
+                                        className="bg-brand-neon text-black px-10 py-4 rounded-2xl font-black shadow-lg shadow-brand-neon/20 hover:scale-105 transition-all"
+                                    >
+                                        Abrir Câmera
+                                    </button>
+                                </div>
+                            ) : (
+                                <div id="reader" className="w-full h-full"></div>
+                            )}
+                            
+                            {isProcessingCheckin && (
+                                <div className="absolute inset-0 bg-brand-neon/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 animate-pulse">
+                                    <Loader2 size={48} className="animate-spin text-black mb-4" />
+                                    <span className="text-black font-black uppercase tracking-widest">Validando...</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {scannerActive && (
+                            <button 
+                                onClick={() => setScannerActive(false)}
+                                className="mt-8 text-red-500 font-bold hover:underline"
+                            >
+                                Desativar Câmera
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ABA: MEUS TICKETS */}
+            {activeTab === 'my_events' && (
+                <div className="animate-fade-in-up space-y-8 pb-12">
+                    {myTickets.length === 0 ? <div className="py-32 text-center opacity-50 font-bold">Você não possui tickets ainda.</div> : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {myTickets.map(ticket => (
+                                <div 
+                                    key={ticket.id} 
+                                    onClick={() => setSelectedTicketForView(ticket)}
+                                    className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 flex gap-8 relative overflow-hidden group cursor-pointer hover:border-brand-neon/50 transition-all hover:shadow-2xl hover:shadow-brand-neon/5"
+                                >
+                                    <div className="w-32 h-32 bg-white rounded-3xl flex items-center justify-center flex-shrink-0 border-4 border-slate-100">
+                                        <QrCode size={80} className="text-black opacity-40 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <div className="flex-1 flex flex-col justify-center">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {ticket.status === 'checkin_realizado' ? (
+                                                <span className="bg-brand-green/20 text-brand-green text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1">
+                                                    <CheckCircle size={10} /> Validado
+                                                </span>
+                                            ) : (
+                                                <span className="bg-brand-neon text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Confirmado</span>
+                                            )}
+                                        </div>
+                                        <h4 className="text-xl md:text-2xl font-black mb-2 line-clamp-1">{ticket.evento?.titulo}</h4>
+                                        <div className="flex items-center gap-2 text-slate-500 text-sm">
+                                            <Calendar size={14} className="text-brand-green" /> 
+                                            {new Date(ticket.evento?.data_inicio || '').toLocaleDateString('pt-BR')}
+                                        </div>
+                                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-brand-neon transition-colors">
+                                            Clique para ver convite →
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Decorative element */}
+                                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-brand-neon/5 rounded-full blur-2xl group-hover:bg-brand-neon/20 transition-colors"></div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* ABA: GAMIFICATION (CENTRO DE PONTUAÇÃO) */}
             {activeTab === 'gamification' && (
               <div className="animate-fade-in-up space-y-12 pb-12">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  
                   {/* SEÇÃO ATRIBUIR PONTOS */}
                   <div className="space-y-8">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-3 bg-brand-neon/10 rounded-2xl text-brand-neon"><Coins size={24} /></div>
                       <h3 className="text-2xl font-black">Atribuição Manual</h3>
                     </div>
-                    
                     <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] space-y-6 relative">
-                      
-                      {/* BUSCA DE MEMBRO */}
                       <div>
                         <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3 block">1. Encontre o Membro</label>
                         <div className="relative">
@@ -526,8 +917,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             onChange={(e) => setMemberSearch(e.target.value)}
                             className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-4 pl-12 pr-4 text-sm focus:border-brand-neon outline-none transition-all"
                           />
-                          
-                          {/* DROPDOWN DE RESULTADOS */}
                           {memberSearch && (
                             <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
                               {filteredSearchMembers.length > 0 ? (
@@ -560,7 +949,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         </div>
                       </div>
 
-                      {/* MEMBRO SELECIONADO ATIVO */}
                       {selectedUserForPoints ? (
                         <div className="animate-fade-in-up p-5 bg-brand-neon/5 border border-brand-neon/30 rounded-2xl flex items-center justify-between shadow-lg shadow-brand-neon/5 ring-1 ring-brand-neon/20">
                           <div className="flex items-center gap-4">
@@ -585,7 +973,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         </div>
                       )}
 
-                      {/* SELETOR DE AÇÃO (STEP 2) */}
                       {selectedUserForPoints && (
                         <div className="animate-fade-in-up space-y-4 pt-4 border-t border-slate-200 dark:border-white/10">
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">2. Selecione a Realização</label>
@@ -653,95 +1040,68 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                     </div>
                   </div>
                 </div>
-
-                {/* GESTÃO DE REGRAS - TABELA DE PREÇOS */}
-                <div className="space-y-8 animate-fade-in-up">
-                   <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-6">
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 bg-slate-100 dark:bg-white/10 rounded-2xl text-slate-500"><Settings size={24} /></div>
-                         <div>
-                            <h3 className="text-2xl font-black">Tabela de Preços (Regras)</h3>
-                            <p className="text-sm text-slate-500">Configure os valores padrão de pontuação.</p>
-                         </div>
-                      </div>
-                      <button 
-                        onClick={() => setIsEditingRules(!isEditingRules)}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-xs transition-all border ${isEditingRules ? 'bg-brand-neon text-black border-brand-neon' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500'}`}
-                      >
-                        {isEditingRules ? <Check size={16} /> : <Edit3 size={16} />}
-                        {isEditingRules ? 'Finalizar Edição' : 'Editar Valores'}
-                      </button>
-                   </div>
-
-                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                      {rules.map(rule => (
-                        <div 
-                          key={rule.id} 
-                          onClick={() => {
-                            if (isEditingRules) { setEditingRule(rule); }
-                            else if (selectedUserForPoints) { handleAwardPoints(rule); }
-                          }}
-                          className={`
-                            bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] flex flex-col items-center text-center group transition-all relative
-                            ${(selectedUserForPoints && !isEditingRules) ? 'cursor-pointer hover:border-brand-neon hover:scale-105 hover:shadow-2xl hover:shadow-brand-neon/20' : ''}
-                            ${isEditingRules ? 'ring-2 ring-brand-neon ring-inset cursor-pointer' : ''}
-                          `}
-                        >
-                          <div className={`w-14 h-14 bg-brand-neon/10 rounded-3xl flex items-center justify-center text-brand-neon mb-5 group-hover:scale-110 transition-transform ${isEditingRules ? 'animate-pulse' : ''}`}>
-                            {isEditingRules ? <Edit3 size={24} /> : <Award size={24} />}
-                          </div>
-                          <h4 className="font-black text-sm mb-2 text-slate-900 dark:text-white leading-tight">{rule.acao}</h4>
-                          <span className="text-3xl font-black text-brand-neon">{rule.valor}</span>
-                          <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-2">Inovacoins</span>
-                          
-                          {selectedUserForPoints && !isEditingRules && (
-                             <div className="absolute top-4 right-4 text-brand-neon opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Plus size={20} />
-                             </div>
-                          )}
-                        </div>
-                      ))}
-                   </div>
-                </div>
               </div>
             )}
 
-            {/* MODAL EDIÇÃO DE REGRA */}
-            {editingRule && (
-              <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditingRule(null)}></div>
-                <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 w-full max-w-md rounded-[2.5rem] p-10 animate-fade-in-up">
-                  <h3 className="text-2xl font-black mb-8 flex items-center gap-3">
-                    <Edit3 className="text-brand-neon" /> Editar Regra
-                  </h3>
-                  <div className="space-y-6">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Nome da Ação</label>
-                      <input 
-                        type="text" 
-                        value={editingRule.acao}
-                        onChange={(e) => setEditingRule({...editingRule, acao: e.target.value})}
-                        className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:border-brand-neon outline-none"
-                      />
+            {/* ABA: AGENDA & TICKETS */}
+            {activeTab === 'agenda' && (
+                <div className="animate-fade-in-up pb-12">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
+                        <div>
+                            <h3 className="text-2xl font-black">Próximos Eventos</h3>
+                            <p className="text-sm text-slate-500">Participe e ganhe pontos de engajamento.</p>
+                        </div>
+                        {user?.governanca && (
+                            <button 
+                                onClick={() => setIsCreatingEvent(true)}
+                                className="bg-brand-neon text-black px-8 py-3 rounded-xl font-black flex items-center gap-2 w-full sm:w-auto justify-center shadow-lg shadow-brand-neon/20 hover:scale-105 transition-all"
+                            >
+                                <Plus size={20} /> Novo Evento
+                            </button>
+                        )}
                     </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Valor em Inovacoins</label>
-                      <input 
-                        type="number" 
-                        value={editingRule.valor}
-                        onChange={(e) => setEditingRule({...editingRule, valor: Number(e.target.value)})}
-                        className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:border-brand-neon outline-none"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {availableEvents.map(event => (
+                            <div key={event.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden group flex flex-col h-full shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
+                                <div className="h-44 bg-slate-900 relative">
+                                    {event.imagem_capa ? <img src={event.imagem_capa} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" /> : <div className="w-full h-full flex items-center justify-center bg-brand-green/10 text-brand-neon"><CalendarRange size={40} /></div>}
+                                    <div className="absolute top-4 left-4 flex gap-2">
+                                    <div className="bg-brand-neon text-black text-[10px] font-black px-3 py-1 rounded-full uppercase">{event.tipo}</div>
+                                    {event.exclusivo && <div className="bg-black/50 backdrop-blur-md text-white text-[10px] font-black px-3 py-1 rounded-full uppercase flex items-center gap-1 border border-white/20"><Lock size={10} /> Exclusivo</div>}
+                                    </div>
+                                </div>
+                                <div className="p-8 flex flex-col flex-1">
+                                    <h4 className="font-black text-lg mb-4 line-clamp-2">{event.titulo}</h4>
+                                    <div className="flex items-center gap-3 text-slate-500 text-sm mb-8 mt-auto">
+                                        <Calendar size={14} className="text-brand-green" /> 
+                                        {new Date(event.data_inicio).toLocaleDateString('pt-BR')}
+                                    </div>
+                                    <button 
+                                    onClick={() => setSelectedEventForDetail(event)}
+                                    className="w-full bg-brand-neon text-black py-4 rounded-2xl font-black hover:scale-105 transition-all shadow-lg shadow-brand-neon/10"
+                                    >
+                                    Ver Detalhes
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <div className="flex gap-4 pt-4">
-                      <button onClick={() => setEditingRule(null)} className="flex-1 py-4 font-black text-sm text-slate-500 hover:text-white transition-colors">Cancelar</button>
-                      <button onClick={handleUpdateRule} className="flex-1 bg-brand-neon text-black py-4 rounded-2xl font-black text-sm hover:scale-105 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-neon/20">
-                        <SaveIcon size={18} /> Salvar Regra
-                      </button>
-                    </div>
-                  </div>
                 </div>
-              </div>
+            )}
+
+            {/* ABA: MEUS ARTIGOS */}
+            {activeTab === 'articles' && (
+                <div className="animate-fade-in-up space-y-8 pb-12">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"><h3 className="text-2xl font-black flex items-center gap-3"><PenTool className="text-brand-neon" /> Suas Publicações</h3><button onClick={() => setIsCreatingArticle(true)} className="w-full sm:w-auto bg-brand-neon text-black px-8 py-4 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-brand-neon/20 flex items-center justify-center gap-2"><Plus size={20} /> Novo Artigo</button></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {myArticles.map(artigo => (
+                            <div key={artigo.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] overflow-hidden group">
+                                <div className="h-44 bg-slate-900 relative">{artigo.capa ? <img src={artigo.capa} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-all" /> : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><ImageIcon className="text-brand-green/30" /></div>}<div className="absolute top-4 right-4">{artigo.aprovado ? <span className="bg-brand-neon text-black text-[10px] font-black px-3 py-1 rounded-full">PUBLICADO</span> : <span className="bg-amber-500 text-black text-[10px] font-black px-3 py-1 rounded-full">EM REVISÃO</span>}</div></div>
+                                <div className="p-6"><h4 className="font-bold text-lg mb-4 line-clamp-2">{artigo.titulo}</h4><button className="w-full bg-slate-50 dark:bg-white/5 py-3 rounded-xl text-xs font-bold hover:bg-brand-neon hover:text-black transition-all">Editar Artigo</button></div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             )}
 
             {/* ABA: MEMBROS */}
@@ -770,7 +1130,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 </div>
             )}
 
-            {/* ABAS GOVERNANÇA */}
+            {/* ABAS GOVERNANÇA (RESTANTES) */}
             {activeTab === 'articles_manage' && (
                 <div className="animate-fade-in-up space-y-8 pb-12">
                     {!selectedArticlePreview ? (
@@ -782,7 +1142,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                     <button onClick={() => setSelectedArticlePreview(artigo)} className="w-full bg-brand-neon text-black py-3 rounded-xl font-black flex items-center justify-center gap-2"><Eye size={18} /> Revisar</button>
                                 </div>
                             ))}
-                            {pendingArticles.length === 0 && <div className="col-span-full py-32 text-center text-slate-500 font-bold border border-dashed border-white/10 rounded-3xl">Fila de curadoria vazia.</div>}
                         </div>
                     ) : (
                         <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[3rem] p-12">
@@ -840,18 +1199,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                         </td>
                                         <td className="p-6">
                                             <div className="flex items-center gap-2">
-                                                <button 
-                                                    onClick={() => handleDeleteUser(member.id, member.nome)}
-                                                    disabled={isUpdatingUser === member.id || member.uuid === user?.uuid}
-                                                    title="Remover Inovador"
-                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-30"
-                                                >
-                                                    {isUpdatingUser === member.id ? (
-                                                        <Loader2 size={18} className="animate-spin" />
-                                                    ) : (
-                                                        <Trash2 size={18} />
-                                                    )}
-                                                </button>
+                                                <button onClick={() => handleDeleteUser(member.id, member.nome)} disabled={isUpdatingUser === member.id || member.uuid === user?.uuid} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-30"><Trash2 size={18} /></button>
                                                 <button className="p-2 text-slate-500 hover:text-white"><MoreHorizontal size={18} /></button>
                                             </div>
                                         </td>
@@ -873,11 +1221,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {gts.map(gt => (
-                                    <div 
-                                        key={gt.id} 
-                                        onClick={() => setSelectedGtForManagement(gt)}
-                                        className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] flex items-center justify-between group cursor-pointer hover:border-brand-neon/50 transition-all"
-                                    >
+                                    <div key={gt.id} onClick={() => setSelectedGtForManagement(gt)} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] flex items-center justify-between group cursor-pointer hover:border-brand-neon/50 transition-all">
                                         <div className="flex items-center gap-6">
                                             <div className="w-16 h-16 bg-brand-neon/10 rounded-3xl flex items-center justify-center text-brand-neon group-hover:bg-brand-neon group-hover:text-black transition-all"><Boxes size={28} /></div>
                                             <div><h4 className="text-xl font-black mb-1">{gt.gt}</h4><p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{members.filter(m => m.gts?.includes(gt.id)).length} Membros Vinculados</p></div>
@@ -889,10 +1233,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         </>
                     ) : (
                         <div className="space-y-12 pb-12">
-                            <button onClick={() => { setSelectedGtForManagement(null); setGtMemberSearch(''); }} className="flex items-center gap-2 text-slate-500 hover:text-brand-neon font-bold transition-all"><ArrowLeft size={18} /> Voltar para lista de GTs</button>
-                            
+                            <button onClick={() => setSelectedGtForManagement(null)} className="flex items-center gap-2 text-slate-500 hover:text-brand-neon font-bold transition-all"><ArrowLeft size={18} /> Voltar para lista de GTs</button>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                                {/* MEMBROS ATUAIS NO GT */}
                                 <div className="space-y-6">
                                     <div className="flex items-center justify-between border-b border-white/10 pb-4">
                                         <h3 className="text-xl font-black flex items-center gap-2"><CheckCircle className="text-brand-neon" /> Membros Atuais</h3>
@@ -902,112 +1244,131 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                         {members.filter(m => m.gts?.includes(selectedGtForManagement.id)).map(member => (
                                             <div key={member.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-2xl flex items-center justify-between group">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full overflow-hidden bg-brand-green/10">
-                                                        {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="m-auto mt-2" />}
-                                                    </div>
+                                                    <div className="w-10 h-10 rounded-full overflow-hidden bg-brand-green/10">{member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="m-auto mt-2" />}</div>
                                                     <div><div className="font-bold text-sm">{member.nome}</div><div className="text-[10px] text-slate-500">{cargos.find(c => c.id === member.cargo)?.cargo}</div></div>
                                                 </div>
-                                                <button 
-                                                    onClick={() => handleToggleMemberInGt(member, selectedGtForManagement.id, false)}
-                                                    disabled={isUpdatingUser === member.id}
-                                                    className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-                                                >
-                                                    {isUpdatingUser === member.id ? <Loader2 size={16} className="animate-spin" /> : <UserMinus size={18} />}
-                                                </button>
+                                                <button onClick={() => handleToggleMemberInGt(member, selectedGtForManagement.id, false)} disabled={isUpdatingUser === member.id} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"><UserMinus size={18} /></button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* ADICIONAR NOVOS MEMBROS */}
-                                <div className="space-y-6">
-                                    <div className="flex flex-col gap-4 border-b border-white/10 pb-4">
-                                        <h3 className="text-xl font-black flex items-center gap-2"><PlusCircle className="text-brand-green" /> Adicionar Inovadores</h3>
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                                            <input 
-                                                type="text" 
-                                                placeholder="Buscar inovador para adicionar..." 
-                                                value={gtMemberSearch}
-                                                onChange={(e) => setGtMemberSearch(e.target.value)}
-                                                className="w-full bg-black/30 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm focus:border-brand-neon outline-none"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                        {members
-                                            .filter(m => !m.gts?.includes(selectedGtForManagement.id))
-                                            .filter(m => m.nome.toLowerCase().includes(gtMemberSearch.toLowerCase()))
-                                            .map(member => (
-                                                <div key={member.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-2xl flex items-center justify-between group hover:border-brand-neon/30">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 dark:bg-white/10">
-                                                            {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="m-auto mt-2 text-slate-400" />}
-                                                        </div>
-                                                        <div><div className="font-bold text-sm">{member.nome}</div><div className="text-[10px] text-slate-500">{cargos.find(c => c.id === member.cargo)?.cargo}</div></div>
-                                                    </div>
-                                                    <button 
-                                                        onClick={() => handleToggleMemberInGt(member, selectedGtForManagement.id, true)}
-                                                        disabled={isUpdatingUser === member.id}
-                                                        className="p-2 text-slate-500 hover:text-brand-neon hover:bg-brand-neon/10 rounded-xl transition-all"
-                                                    >
-                                                        {isUpdatingUser === member.id ? <Loader2 size={16} className="animate-spin" /> : <UserPlusIcon size={18} />}
-                                                    </button>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     )}
-                </div>
-            )}
-
-            {/* ABA: AGENDA & TICKETS (Sempre acessíveis) */}
-            {activeTab === 'agenda' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up pb-12">
-                    {availableEvents.map(event => (
-                        <div key={event.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden group">
-                            <div className="h-44 bg-slate-900 relative">
-                                {event.imagem_capa ? <img src={event.imagem_capa} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" /> : <div className="w-full h-full flex items-center justify-center bg-brand-green/10 text-brand-neon"><CalendarRange size={40} /></div>}
-                                <div className="absolute top-4 left-4 bg-brand-neon text-black text-[10px] font-black px-3 py-1 rounded-full uppercase">{event.tipo}</div>
-                            </div>
-                            <div className="p-8"><h4 className="font-black text-lg mb-4">{event.titulo}</h4><div className="flex items-center gap-3 text-slate-500 text-sm mb-8"><Calendar size={14} /> {new Date(event.data_inicio).toLocaleDateString('pt-BR')}</div><button className="w-full bg-brand-neon text-black py-4 rounded-2xl font-black hover:scale-105 transition-all">Garantir Ingresso</button></div>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {activeTab === 'my_events' && (
-                <div className="animate-fade-in-up space-y-8 pb-12">
-                    {myTickets.length === 0 ? <div className="py-32 text-center opacity-50 font-bold">Você não possui tickets ainda.</div> : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {myTickets.map(ticket => (
-                                <div key={ticket.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 flex gap-8 relative overflow-hidden group">
-                                    <div className="w-32 h-32 bg-white rounded-3xl flex items-center justify-center flex-shrink-0"><QrCode size={80} className="text-black" /></div>
-                                    <div><div className="text-[10px] font-black text-brand-neon uppercase tracking-widest mb-2">Confirmado</div><h4 className="text-xl md:text-2xl font-black mb-4">{ticket.evento?.titulo}</h4><div className="flex items-center gap-2 text-slate-500 text-sm"><Calendar size={14} /> {new Date(ticket.evento?.data_inicio || '').toLocaleDateString('pt-BR')}</div></div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {activeTab === 'articles' && (
-                <div className="animate-fade-in-up space-y-8 pb-12">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"><h3 className="text-2xl font-black flex items-center gap-3"><PenTool className="text-brand-neon" /> Suas Publicações</h3><button onClick={() => setIsCreatingArticle(true)} className="w-full sm:w-auto bg-brand-neon text-black px-8 py-4 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-brand-neon/20 flex items-center justify-center gap-2"><Plus size={20} /> Novo Artigo</button></div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {myArticles.map(artigo => (
-                            <div key={artigo.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] overflow-hidden group">
-                                <div className="h-44 bg-slate-900 relative">{artigo.capa ? <img src={artigo.capa} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-all" /> : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><ImageIcon className="text-brand-green/30" /></div>}<div className="absolute top-4 right-4">{artigo.aprovado ? <span className="bg-brand-neon text-black text-[10px] font-black px-3 py-1 rounded-full">PUBLICADO</span> : <span className="bg-amber-500 text-black text-[10px] font-black px-3 py-1 rounded-full">EM REVISÃO</span>}</div></div>
-                                <div className="p-6"><h4 className="font-bold text-lg mb-4 line-clamp-2">{artigo.titulo}</h4><button className="w-full bg-slate-50 dark:bg-white/5 py-3 rounded-xl text-xs font-bold hover:bg-brand-neon hover:text-black transition-all">Editar Artigo</button></div>
-                            </div>
-                        ))}
-                    </div>
                 </div>
             )}
         </main>
       </div>
+
+      {/* MODAL VISUALIZAÇÃO DE TICKET */}
+      {selectedTicketForView && (
+          <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTicketForView(null)}></div>
+              <div className="relative bg-white dark:bg-[#0a0a0a] w-full max-w-lg border border-slate-200 dark:border-white/10 rounded-[3rem] overflow-hidden shadow-2xl animate-fade-in-up flex flex-col">
+                  
+                  <div className="absolute top-6 right-6 z-10">
+                      <button onClick={() => setSelectedTicketForView(null)} className="p-2 bg-black/50 backdrop-blur-md text-white rounded-full hover:bg-white hover:text-black transition-all">
+                          <X size={20} />
+                      </button>
+                  </div>
+
+                  <div className="bg-brand-neon p-10 flex flex-col items-center">
+                       <Logo dark />
+                       <div className="mt-8 bg-white p-4 rounded-[2.5rem] shadow-2xl border-4 border-black/5">
+                            <QRCode 
+                                id="qr-code-svg"
+                                value={selectedTicketForView.id} 
+                                size={220}
+                                level="H"
+                            />
+                       </div>
+                  </div>
+
+                  <div className="p-10 text-center">
+                        <div className="text-[10px] font-black text-brand-neon uppercase tracking-[0.3em] mb-4">Convite Oficial</div>
+                        <h3 className="text-3xl font-black mb-2">{selectedTicketForView.evento?.titulo}</h3>
+                        <p className="text-slate-500 mb-8 text-sm">{selectedTicketForView.evento?.local}</p>
+                        
+                        <div className="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-white/5 pt-8 mb-10 text-left">
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase">Data</div>
+                                <div className="font-bold text-slate-900 dark:text-white">{new Date(selectedTicketForView.evento?.data_inicio || '').toLocaleDateString('pt-BR')}</div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase">Portador</div>
+                                <div className="font-bold text-slate-900 dark:text-white truncate">{user?.nome}</div>
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={handleDownloadTicket}
+                            className="w-full bg-brand-neon text-black py-5 rounded-[2rem] font-black text-lg hover:scale-[1.02] transition-all flex items-center justify-center gap-3 shadow-xl shadow-brand-neon/20"
+                        >
+                            <Download size={24} /> Salvar Imagem do Ticket
+                        </button>
+                        <p className="mt-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Apresente este QR Code na entrada do evento</p>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL CRIAR EVENTO */}
+      {isCreatingEvent && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setIsCreatingEvent(false)}></div>
+              <div className="relative bg-white dark:bg-[#0a0a0a] w-full max-w-2xl border border-slate-200 dark:border-white/10 rounded-[3rem] overflow-hidden shadow-2xl animate-fade-in-up flex flex-col">
+                  <div className="px-10 py-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                          <div className="p-3 bg-brand-neon/10 rounded-2xl text-brand-neon"><Plus size={24} /></div>
+                          <h3 className="text-2xl font-black">Novo Evento</h3>
+                      </div>
+                      <button onClick={() => setIsCreatingEvent(false)} className="p-2 text-slate-500 hover:text-white transition-colors"><X size={24} /></button>
+                  </div>
+                  <div className="p-10 space-y-6 overflow-y-auto max-h-[70vh] custom-scrollbar">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="col-span-full">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Título</label>
+                              <input type="text" value={eventForm.titulo} onChange={(e) => setEventForm({...eventForm, titulo: e.target.value})} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:border-brand-neon outline-none" />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Data e Hora</label>
+                              <input type="datetime-local" value={eventForm.data_inicio} onChange={(e) => setEventForm({...eventForm, data_inicio: e.target.value})} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:border-brand-neon outline-none" />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Local</label>
+                              <input type="text" value={eventForm.local} onChange={(e) => setEventForm({...eventForm, local: e.target.value})} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:border-brand-neon outline-none" />
+                          </div>
+                      </div>
+                  </div>
+                  <div className="px-10 py-8 bg-slate-50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 flex gap-4">
+                      <button onClick={() => setIsCreatingEvent(false)} className="flex-1 py-4 font-black text-slate-500">Cancelar</button>
+                      <button onClick={handleSubmitEvent} disabled={isSubmittingEvent} className="flex-[2] bg-brand-neon text-black py-4 rounded-2xl font-black shadow-lg shadow-brand-neon/20 hover:scale-105 transition-all">Publicar Evento</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL DETALHES DO EVENTO */}
+      {selectedEventForDetail && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setSelectedEventForDetail(null)}></div>
+              <div className="relative bg-white dark:bg-[#0a0a0a] w-full max-w-2xl border border-slate-200 dark:border-white/10 rounded-[3rem] overflow-hidden shadow-2xl animate-fade-in-up flex flex-col">
+                  <div className="h-56 md:h-64 bg-slate-900 relative flex-shrink-0">
+                      {selectedEventForDetail.imagem_capa ? <img src={selectedEventForDetail.imagem_capa} className="w-full h-full object-cover opacity-70" alt="Capa" /> : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><CalendarRange size={64} className="text-brand-neon opacity-20" /></div>}
+                      <button onClick={() => setSelectedEventForDetail(null)} className="absolute top-6 right-6 p-2 bg-black/50 text-white rounded-full hover:bg-white hover:text-black"><X size={20} /></button>
+                  </div>
+                  <div className="p-10 md:p-12 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                      <h3 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-8 leading-tight">{selectedEventForDetail.titulo}</h3>
+                      <p className="text-slate-600 dark:text-slate-400 leading-relaxed font-medium">{selectedEventForDetail.descricao || 'Conectando atores do ecossistema de inovação.'}</p>
+                  </div>
+                  <div className="p-10 md:px-12 md:pb-12 bg-slate-50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 flex-shrink-0">
+                      <button onClick={() => handleRegisterEvent(selectedEventForDetail)} disabled={isRegisteringEvent} className="w-full bg-brand-neon text-black py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-brand-neon/20 flex items-center justify-center gap-3">
+                          {isRegisteringEvent ? <Loader2 size={24} className="animate-spin" /> : <Ticket size={24} />} Garantir Ingresso Gratuito
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* MODAL DETALHES DO MEMBRO (VER PERFIL) */}
       {viewingMember && (
@@ -1015,117 +1376,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setViewingMember(null)}></div>
               <div className="relative bg-white dark:bg-[#0a0a0a] w-full max-w-2xl border border-slate-200 dark:border-white/10 rounded-[3rem] overflow-hidden shadow-2xl animate-fade-in-up">
                   <div className="h-40 bg-gradient-to-br from-brand-green/30 to-brand-neon/10 relative">
-                      <button onClick={() => setViewingMember(null)} className="absolute top-6 right-6 p-2 bg-black/50 backdrop-blur-md text-white rounded-full hover:bg-white hover:text-black transition-all">
-                          <X size={20} />
-                      </button>
+                      <button onClick={() => setViewingMember(null)} className="absolute top-6 right-6 p-2 bg-black/50 text-white rounded-full"><X size={20} /></button>
                   </div>
                   <div className="px-10 pb-10 relative">
                       <div className="absolute -top-16 left-10">
-                          <div className="w-32 h-32 rounded-[2rem] border-8 border-white dark:border-[#0a0a0a] overflow-hidden bg-brand-green shadow-xl">
-                              {viewingMember.avatar ? <img src={viewingMember.avatar} className="w-full h-full object-cover" /> : <UserIcon size={48} className="m-auto mt-8 text-black" />}
-                          </div>
+                          <div className="w-32 h-32 rounded-[2rem] border-8 border-white dark:border-[#0a0a0a] overflow-hidden bg-brand-green shadow-xl">{viewingMember.avatar ? <img src={viewingMember.avatar} className="w-full h-full object-cover" /> : <UserIcon size={48} className="m-auto mt-8 text-black" />}</div>
                       </div>
                       <div className="pt-20 flex justify-between items-start">
-                          <div>
-                              <h3 className="text-3xl font-black text-slate-900 dark:text-white leading-tight">{viewingMember.nome}</h3>
-                              <div className="flex items-center gap-2 mt-2">
-                                  <span className="text-[10px] font-black uppercase text-brand-neon bg-brand-neon/10 px-3 py-1 rounded-full border border-brand-neon/20">{cargos.find(c => c.id === viewingMember.cargo)?.cargo}</span>
-                                  {viewingMember.governanca && <span className="text-[10px] font-black uppercase text-brand-green bg-brand-green/10 px-3 py-1 rounded-full border border-brand-green/20">Governança</span>}
-                              </div>
-                          </div>
-                          <div className="text-right">
-                              <div className="text-2xl font-black text-brand-neon">{viewingMember.pontos || 0}</div>
-                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Inovacoins</div>
-                          </div>
-                      </div>
-
-                      <div className="mt-10 grid grid-cols-2 gap-4">
-                          <div className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 p-6 rounded-3xl">
-                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Artigos Publicados</div>
-                              <div className="text-2xl font-black flex items-center gap-2">
-                                  <FileText size={20} className="text-brand-green" /> {viewingMember.artigos || 0}
-                              </div>
-                          </div>
-                          <div className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 p-6 rounded-3xl">
-                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Membro desde</div>
-                              <div className="text-base font-bold text-slate-700 dark:text-slate-300">
-                                  {new Date(viewingMember.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long' })}
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="mt-10">
-                          <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Grupos de Trabalho</div>
-                          <div className="flex flex-wrap gap-2">
-                              {viewingMember.gts?.length ? viewingMember.gts.map(gtId => (
-                                  <span key={gtId} className="bg-white/10 text-white text-[11px] font-bold px-4 py-2 rounded-xl border border-white/10">
-                                      {gts.find(g => g.id === gtId)?.gt || 'GT...'}
-                                  </span>
-                              )) : <span className="text-sm text-slate-500 italic">Nenhum GT vinculado.</span>}
-                          </div>
-                      </div>
-
-                      <div className="mt-12 pt-8 border-t border-slate-200 dark:border-white/10">
-                          {isLoadingMemberDetails ? (
-                              <div className="flex items-center justify-center py-4">
-                                  <Loader2 size={24} className="animate-spin text-brand-neon" />
-                              </div>
-                          ) : viewingMemberCompany ? (
-                              <div className="animate-fade-in-up flex flex-col sm:flex-row items-center justify-between gap-6 p-6 bg-brand-neon/10 border border-brand-neon/30 rounded-3xl">
-                                  <div className="flex items-center gap-4">
-                                      <div className="w-14 h-14 bg-white rounded-2xl p-1 shadow-lg shadow-black/20">
-                                          {viewingMemberCompany.logo ? <img src={viewingMemberCompany.logo} className="w-full h-full object-contain" /> : <Building2 size={24} className="m-auto mt-3 text-brand-green" />}
-                                      </div>
-                                      <div>
-                                          <div className="text-[10px] font-black text-brand-neon uppercase tracking-widest">Responsável por</div>
-                                          <div className="text-lg font-black text-slate-900 dark:text-white leading-tight">{viewingMemberCompany.nome}</div>
-                                      </div>
-                                  </div>
-                                  <button 
-                                    onClick={() => {
-                                        onViewCompany(viewingMemberCompany);
-                                        setViewingMember(null);
-                                    }}
-                                    className="w-full sm:w-auto px-6 py-3 bg-brand-neon text-black rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-xl shadow-brand-neon/20"
-                                  >
-                                      <ExternalLink size={16} /> Ver Empresa
-                                  </button>
-                              </div>
-                          ) : (
-                              <div className="text-center py-4 text-slate-500 text-sm font-medium italic">
-                                  Este membro ainda não possui uma empresa vinculada.
-                              </div>
-                          )}
+                          <div><h3 className="text-3xl font-black text-slate-900 dark:text-white leading-tight">{viewingMember.nome}</h3></div>
                       </div>
                   </div>
               </div>
           </div>
       )}
 
-      {/* MODAL EDITOR DE ARTIGO COMPLETO */}
+      {/* MODAL EDITOR DE ARTIGO */}
       {isCreatingArticle && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setIsCreatingArticle(false)}></div>
               <div className="relative bg-white dark:bg-[#0a0a0a] w-full max-w-6xl h-full md:h-[95vh] md:rounded-[3rem] overflow-hidden shadow-2xl flex flex-col animate-fade-in-up">
                   <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between flex-shrink-0">
-                      <div className="flex items-center gap-4"><div className="p-3 bg-brand-neon/10 rounded-2xl text-brand-neon"><PenTool size={24} /></div><div className="hidden sm:block"><h3 className="text-xl font-black">Editor de Conhecimento</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">INOVAP Lab</p></div></div>
-                      <button onClick={() => setIsCreatingArticle(false)} className="text-slate-500 hover:text-white transition-colors p-2"><X size={28} /></button>
+                      <div className="flex items-center gap-4"><div className="p-3 bg-brand-neon/10 rounded-2xl text-brand-neon"><PenTool size={24} /></div><h3 className="text-xl font-black">Editor de Conhecimento</h3></div>
+                      <button onClick={() => setIsCreatingArticle(false)} className="text-slate-500 hover:text-white p-2"><X size={28} /></button>
                   </div>
                   <div className="flex-1 overflow-y-auto flex flex-col md:flex-row">
                       <div className="w-full md:w-80 border-r border-white/10 p-8 space-y-8 overflow-y-auto">
                           <div><label className="text-[10px] font-black text-brand-neon uppercase mb-4 block">Categoria</label><select value={articleForm.gt_id} onChange={(e) => setArticleForm(prev => ({ ...prev, gt_id: Number(e.target.value) }))} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:border-brand-neon outline-none">{<option value={0}>GT...</option>}{gts.map(gt => <option key={gt.id} value={gt.id} className="bg-black">{gt.gt}</option>)}</select></div>
                       </div>
                       <div className="flex-1 flex flex-col">
-                          <div className="px-8 py-4 bg-white/[0.02] border-b border-white/10 flex gap-2 overflow-x-auto"><button onClick={() => execCommand('bold')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon flex-shrink-0"><Bold size={18} /></button><button onClick={() => execCommand('formatBlock', 'h2')} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-neon flex-shrink-0"><Heading1 size={18} /></button></div>
                           <div className="flex-1 p-6 md:p-14 overflow-y-auto bg-black/20">
                             <input type="text" value={articleForm.titulo} onChange={(e) => setArticleForm(prev => ({ ...prev, titulo: e.target.value }))} placeholder="Título do Artigo" className="w-full bg-transparent border-none focus:ring-0 text-2xl md:text-4xl font-black mb-4"/>
-                            <input type="text" value={articleForm.subtitulo} onChange={(e) => setArticleForm(prev => ({ ...prev, subtitulo: e.target.value }))} placeholder="Subtítulo..." className="w-full bg-transparent border-none focus:ring-0 text-lg md:text-xl font-light mb-12 text-slate-500"/>
                             <div ref={editorRef} contentEditable suppressContentEditableWarning={true} className="prose prose-invert max-w-none focus:outline-none min-h-[300px] text-base md:text-lg leading-relaxed text-slate-300"></div>
                           </div>
                       </div>
                   </div>
                   <div className="px-8 py-6 border-t border-white/10 flex justify-end gap-4 flex-shrink-0">
-                      <button onClick={() => setIsCreatingArticle(false)} className="hidden sm:block px-8 py-3 font-bold text-slate-500">Descartar</button>
                       <button onClick={submitArticle} disabled={isSubmittingArticle} className="w-full sm:w-auto bg-brand-neon text-black px-12 py-3 rounded-xl font-black hover:scale-105 transition-all flex items-center justify-center gap-2">{isSubmittingArticle ? <Loader2 className="animate-spin" /> : <Send size={20} />} Enviar para Curadoria</button>
                   </div>
               </div>

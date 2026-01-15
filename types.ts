@@ -20,7 +20,7 @@ export interface User {
   governanca?: boolean;
   avatar?: string;
   artigos: number;
-  pontos: number; // Agora obrigatório do banco
+  pontos: number;
   nivel?: string;
 }
 
@@ -69,7 +69,6 @@ export interface PontuacaoLog {
   pontos_atribuidos: number;
   atribuido_por: string;
   motivo?: string;
-  // Joins
   user_nome?: string;
   regra_acao?: string;
 }
@@ -86,6 +85,7 @@ export interface Evento {
   tipo: string;
   imagem_capa?: string;
   vagas?: number;
+  exclusivo?: boolean;
 }
 
 export interface Inscricao {
