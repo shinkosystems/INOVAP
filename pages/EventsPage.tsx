@@ -15,6 +15,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onLoginClick, onNavigate
     const [events, setEvents] = useState<Evento[]>([]);
     const [loading, setLoading] = useState(true);
     const [registering, setRegistering] = useState<number | null>(null);
+    const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
 
     useEffect(() => {
         fetchEvents();
@@ -70,12 +71,16 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onLoginClick, onNavigate
         }
     };
 
+    const upcomingEvents = events.filter(evt => new Date(evt.data_inicio) >= new Date());
+    const pastEvents = events.filter(evt => new Date(evt.data_inicio) < new Date());
+    const displayedEvents = activeTab === 'upcoming' ? upcomingEvents : pastEvents;
+
     return (
         <div className="bg-white dark:bg-black min-h-screen text-slate-900 dark:text-white font-sans selection:bg-brand-neon selection:text-black transition-colors duration-300">
             <Navbar onLoginClick={onLoginClick} onNavigate={onNavigate} />
 
             <div className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-                <div className="text-center mb-16 animate-fade-in-up">
+                <div className="text-center mb-12 animate-fade-in-up">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 mb-6 font-black uppercase tracking-[0.2em] text-[10px]">
                         <span className="w-2 h-2 bg-brand-neon rounded-full animate-pulse"></span>
                         Calendário do Ecossistema
@@ -84,6 +89,30 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onLoginClick, onNavigate
                     <p className="text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
                         Conecte-se com as mentes que estão transformando o futuro do nosso território.
                     </p>
+
+                    {/* Tabs Selector */}
+                    <div className="flex justify-center mb-12">
+                        <div className="bg-slate-100 dark:bg-white/5 p-1.5 rounded-3xl flex gap-1 border border-slate-200 dark:border-white/10">
+                            <button
+                                onClick={() => setActiveTab('upcoming')}
+                                className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'upcoming'
+                                    ? 'bg-brand-neon text-black shadow-neon'
+                                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                Eventos Abertos ({upcomingEvents.length})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('past')}
+                                className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'past'
+                                    ? 'bg-brand-neon text-black shadow-neon'
+                                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                Eventos Anteriores ({pastEvents.length})
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {loading ? (
@@ -92,14 +121,14 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onLoginClick, onNavigate
                     </div>
                 ) : (
                     <>
-                        {events.length === 0 ? (
-                            <div className="text-center py-32 bg-slate-50 dark:bg-white/[0.02] rounded-[3rem] border border-dashed border-slate-200 dark:border-white/10">
-                                <Calendar size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-6" />
-                                <p className="text-xl font-bold text-slate-400">Nenhum evento encontrado no momento.</p>
+                        {displayedEvents.length === 0 ? (
+                            <div className="text-center py-32 bg-slate-50 dark:bg-white/[0.02] rounded-[3rem] border border-dashed border-slate-200 dark:border-white/10 animate-fade-in">
+                                <Calendar size={48} className="mx-auto text-slate-200 dark:text-slate-700 mb-6" />
+                                <p className="text-xl font-bold text-slate-400 uppercase tracking-tighter italic">Nenhum evento {activeTab === 'upcoming' ? 'em aberto' : 'anterior'} encontrado.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                                {events.map((evt) => {
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up" key={activeTab}>
+                                {displayedEvents.map((evt) => {
                                     const dataInicio = new Date(evt.data_inicio);
                                     const isPast = dataInicio < new Date();
 

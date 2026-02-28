@@ -18,11 +18,15 @@ export const Events: React.FC<EventsProps> = ({ onLoginClick }) => {
                 const { data, error } = await supabase
                     .from('eventos')
                     .select('*')
-                    .order('data_inicio', { ascending: false })
-                    .limit(6);
+                    .order('data_inicio', { ascending: false });
 
                 if (!error && data) {
-                    setEvents(data);
+                    // Separar e ordenar: Futuros (mais próximos primeiro) depois Passados (mais recentes primeiro)
+                    const now = new Date();
+                    const upcoming = data.filter(e => new Date(e.data_inicio) >= now).sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+                    const past = data.filter(e => new Date(e.data_inicio) < now).sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+
+                    setEvents([...upcoming, ...past].slice(0, 6));
                 }
             } catch (e) {
                 console.error("Erro ao buscar eventos", e);
