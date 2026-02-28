@@ -1,19 +1,20 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Logo } from '../components/ui/Logo';
-import { 
-  LayoutDashboard, Users, LogOut, ShieldCheck, PlusCircle, 
-  CheckCircle, AlertCircle, Search, ArrowRight, ArrowLeft, 
-  Users2, Crown, Boxes, UserMinus, Loader2, Star, TrendingUp, 
+import {
+  LayoutDashboard, Users, LogOut, ShieldCheck, PlusCircle,
+  CheckCircle, AlertCircle, Search, ArrowRight, ArrowLeft,
+  Users2, Crown, Boxes, UserMinus, Loader2, Star, TrendingUp,
   CalendarRange, Ticket, ScanLine, Menu as MenuIcon, Trophy,
-  BookOpen, MapPin, Search as SearchIcon, X, BarChart3, 
-  ShieldAlert, Settings, Info, History, Coins, Edit3, 
+  BookOpen, MapPin, Search as SearchIcon, X, BarChart3,
+  ShieldAlert, Settings, Info, History, Coins, Edit3,
   CheckSquare, FileText, ExternalLink, Zap, Clock, Save, Camera as CameraIcon,
   Eye, ThumbsUp, Trash2, User as UserIcon, QrCode as QrIcon,
   Bold, Italic, List, ListOrdered, Heading1, Heading2, ImageIcon, Type, Tags, Send,
   CalendarDays, Users as UsersIcon, ChevronRight, Lock, Filter,
   CheckSquare as TaskIcon, ListTodo, CalendarClock, UserCheck,
   LayoutList, Calendar, ChevronLeft, Paperclip, MessageSquare, Download,
+  Plus,
   ChevronRight as ChevronRightIcon,
   Sun, Moon
 } from 'lucide-react';
@@ -35,7 +36,7 @@ type CalendarType = 'month' | 'week' | 'day';
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick, onViewCompany }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
-  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => (localStorage.getItem('theme') as 'dark' | 'light') || 'dark');
 
   // Data States
@@ -49,14 +50,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [rules, setRules] = useState<PontuacaoRegra[]>([]);
   const [logs, setLogs] = useState<PontuacaoLog[]>([]);
   const [tasks, setTasks] = useState<Tarefa[]>([]);
-  
+
   // Admin States
   const [allArticles, setAllArticles] = useState<Artigo[]>([]);
   const [articleFilter, setArticleFilter] = useState<'pending' | 'active'>('pending');
   const [selectedArticleForReview, setSelectedArticleForReview] = useState<Artigo | null>(null);
   const [selectedGtForManagement, setSelectedGtForManagement] = useState<GT | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
-  
+
   // GT Management Specific States
   const [isAddingGt, setIsAddingGt] = useState(false);
   const [newGtName, setNewGtName] = useState('');
@@ -65,6 +66,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   // Members Screen States
   const [selectedMemberForGts, setSelectedMemberForGts] = useState<User | null>(null);
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
 
   // Task Screen States
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -108,8 +110,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   // Agenda States
   const [selectedEventDetails, setSelectedEventDetails] = useState<Evento | null>(null);
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [filterMonth, setFilterMonth] = useState<number | 'all'>('all');
   const [filterYear, setFilterYear] = useState<number | 'all'>(new Date().getFullYear());
+  const [newEventData, setNewEventData] = useState<Partial<Evento>>({
+    titulo: '',
+    descricao: '',
+    data_inicio: '',
+    data_fim: '',
+    local: '',
+    tipo: 'Workshop',
+    imagem_capa: '',
+    vagas: 100,
+    exclusivo: false
+  });
 
   // Gamification Edit States
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
@@ -152,7 +166,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         supabase.from('inscricoes').select('evento_id'),
         supabase.from('tarefas').select('*, responsavel:users(*), gt:gts(*)').order('prazo', { ascending: true })
       ]);
-      
+
       if (gtsRes.data) setGts(gtsRes.data);
       if (usersRes.data) {
         setMembers(usersRes.data);
@@ -212,7 +226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('imagensBlog').getPublicUrl(`artigos/${fileName}`);
-      
+
       // Focus editor and insert image
       editorRef.current?.focus();
       execEditorCommand('insertImage', data.publicUrl);
@@ -262,8 +276,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   // Fix: handleUpdateTaskField now also updates selectedTaskDetail to reflect changes in the modal immediately
   const handleUpdateTaskField = async (taskId: number, field: string, value: any) => {
     const { error } = await supabase.from('tarefas').update({ [field]: value }).eq('id', taskId);
-    if (!error) { 
-      showNotification('success', 'Atualizado!'); 
+    if (!error) {
+      showNotification('success', 'Atualizado!');
       fetchData();
       if (selectedTaskDetail?.id === taskId) {
         setSelectedTaskDetail(prev => prev ? { ...prev, [field]: value } : null);
@@ -382,11 +396,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   useEffect(() => {
     if (isScanning && activeTab === 'checkin') {
       const scanner = new Html5Qrcode("reader");
-      scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => { handleCheckin(text); stopScanner(); }, () => {});
+      scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => { handleCheckin(text); stopScanner(); }, () => { });
       scannerRef.current = scanner;
     }
     return () => { if (scannerRef.current) scannerRef.current.stop(); };
   }, [isScanning, activeTab]);
+
+  // Agenda Actions
+  const handleCreateEvent = async () => {
+    if (!newEventData.titulo || !newEventData.data_inicio || !newEventData.local) {
+      showNotification('error', 'Preencha os campos obrigatórios.');
+      return;
+    }
+    const { error } = await supabase.from('eventos').insert([
+      { ...newEventData, criado_por: user.uuid }
+    ]);
+    if (!error) {
+      showNotification('success', 'Evento criado com sucesso!');
+      setIsAddingEvent(false);
+      setNewEventData({
+        titulo: '',
+        descricao: '',
+        data_inicio: '',
+        data_fim: '',
+        local: '',
+        tipo: 'Workshop',
+        imagem_capa: '',
+        vagas: 100,
+        exclusivo: false
+      });
+      fetchData();
+    } else {
+      showNotification('error', 'Erro ao criar evento.');
+    }
+  };
 
   // GT Management
   const handleCreateGt = async () => {
@@ -430,23 +473,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   // Members filtered for "Add Member" list in GT management
   const potentialGtMembers = useMemo(() => {
     if (!selectedGtForManagement) return [];
-    return members.filter(m => 
-      !m.gts?.includes(selectedGtForManagement.id) && 
+    return members.filter(m =>
+      !m.gts?.includes(selectedGtForManagement.id) &&
       (gtMemberSearchTerm === '' || m.nome.toLowerCase().includes(gtMemberSearchTerm.toLowerCase()) || m.email.toLowerCase().includes(gtMemberSearchTerm.toLowerCase()))
     );
   }, [members, selectedGtForManagement, gtMemberSearchTerm]);
 
+  const filteredMembers = useMemo(() => {
+    return members.filter(m =>
+      memberSearchTerm === '' ||
+      m.nome.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+      m.email.toLowerCase().includes(memberSearchTerm.toLowerCase())
+    );
+  }, [members, memberSearchTerm]);
+
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white font-sans selection:bg-brand-neon selection:text-black flex transition-colors duration-300">
-      {/* Sidebar Desktop */}
-      <aside className="hidden lg:flex flex-col w-80 border-r border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#050505] fixed h-full z-40">
-        <div className="p-10 flex flex-col items-center">
-          <Logo dark={theme === 'dark'} className="mb-4 scale-125" />
-          <div className="mt-4 text-[11px] font-black uppercase tracking-[0.4em] text-brand-neon">PAINEL DE GESTÃO</div>
+      {/* Sidebar Compacta/Contextual - UI3.0 Minimalist */}
+      <aside className="hidden lg:flex flex-col w-20 hover:w-72 group transition-all duration-500 border-r border-transparent bg-slate-50 dark:bg-brand-surface fixed h-full z-40 overflow-hidden shadow-2xl shadow-black/5">
+        <div className="p-6 flex flex-col items-center">
+          <div className="w-10 h-10 bg-brand-neon rounded-2xl flex items-center justify-center shadow-neon shrink-0">
+            <Logo dark={false} className="scale-75 invert" />
+          </div>
+          <div className="mt-4 text-[8px] font-black uppercase tracking-[0.3em] text-brand-neon opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">PAINEL</div>
         </div>
 
-        <nav className="flex-1 px-6 space-y-2 mt-6 overflow-y-auto">
-          <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 px-4">MENU</div>
+        <nav className="flex-1 px-4 space-y-2 mt-6 overflow-y-auto custom-scrollbar overflow-x-hidden">
           {[
             { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'ranking', label: 'Ranking', icon: Star },
@@ -456,133 +508,177 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             { id: 'articles', label: 'Meus Artigos', icon: FileText },
             { id: 'my_events', label: 'Ingressos', icon: Ticket }
           ].map(item => (
-            <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-500 dark:text-slate-400 hover:bg-black/5 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'}`}>
-              <item.icon size={20} /> {item.label}
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id as Tab)}
+              className={`w-full flex items-center gap-4 px-3.5 py-3.5 rounded-2xl font-bold transition-all relative ${activeTab === item.id ? 'bg-brand-neon/20 text-brand-green dark:text-brand-neon shadow-sm shadow-brand-neon/10' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.03] hover:text-slate-900 dark:hover:text-white'}`}
+            >
+              <item.icon size={22} className="shrink-0" />
+              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm">{item.label}</span>
+              {activeTab === item.id && <div className="absolute left-0 w-1 h-6 bg-brand-neon rounded-full" />}
             </button>
           ))}
-          
+
           {user.governanca && (
             <>
-              <div className="pt-8 text-[10px] font-black text-brand-neon uppercase tracking-widest mb-4 px-4">GOVERNANÇA</div>
+              <div className="pt-6 px-4 group-hover:border-t border-slate-200/40 dark:border-white/[0.02]">
+                <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap mb-4">GOVERNANÇA</div>
+              </div>
               {[
                 { id: 'gts_manage', label: 'Gestão de GTs', icon: Boxes },
                 { id: 'articles_manage', label: 'Aprovar Artigos', icon: CheckSquare },
                 { id: 'gamification', label: 'Gamificação', icon: Trophy },
                 { id: 'checkin', label: 'Check-in', icon: ScanLine }
               ].map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${activeTab === item.id ? 'bg-brand-neon text-black shadow-lg shadow-brand-neon/20' : 'text-slate-500 dark:text-slate-400 hover:bg-black/5 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'}`}>
-                  <item.icon size={20} /> {item.label}
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as Tab)}
+                  className={`w-full flex items-center gap-4 px-3.5 py-3.5 rounded-2xl font-bold transition-all relative ${activeTab === item.id ? 'bg-brand-neon/20 text-brand-green dark:text-brand-neon shadow-sm shadow-brand-neon/10' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.03] hover:text-slate-900 dark:hover:text-white'}`}
+                >
+                  <item.icon size={22} className="shrink-0" />
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm">{item.label}</span>
+                  {activeTab === item.id && <div className="absolute left-0 w-1 h-6 bg-brand-neon rounded-full" />}
                 </button>
               ))}
             </>
           )}
         </nav>
 
-        <div className="p-8 border-t border-slate-200 dark:border-white/5">
-          <button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black text-red-500 hover:bg-red-500/10 transition-all"><LogOut size={20} /> Sair</button>
+        <div className="p-4 pt-6 border-t border-slate-200/40 dark:border-white/[0.02]">
+          <button onClick={onLogout} className="w-full flex items-center gap-4 px-3.5 py-3.5 rounded-2xl text-red-500/60 hover:text-red-500 hover:bg-red-500/5 transition-all">
+            <LogOut size={22} className="shrink-0" />
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm font-bold">Encerrar Sessão</span>
+          </button>
         </div>
       </aside>
 
-      <main className="flex-1 lg:ml-80 min-h-screen relative bg-white dark:bg-[#000]">
-        <header className="sticky top-0 z-30 flex items-center justify-between px-10 py-6 bg-white/60 dark:bg-black/60 backdrop-blur-2xl border-b border-slate-200 dark:border-white/5">
-           <div className="hidden lg:block text-slate-500 dark:text-slate-400 text-sm font-medium">Bem-vindo, <span className="text-slate-900 dark:text-white font-black">{user.nome}</span></div>
-           <div className="flex items-center gap-4">
-             <button 
-                onClick={toggleTheme}
-                className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-all"
-                title={theme === 'dark' ? "Ativar Modo Diurno" : "Ativar Modo Noturno"}
-             >
-                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-             </button>
-             <button onClick={onProfileClick} className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden">
-               {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="text-slate-500 dark:text-slate-300" />}
-             </button>
-           </div>
+      <main className="flex-1 lg:ml-20 min-h-screen relative bg-white dark:bg-brand-black transition-all duration-500">
+        <header className="sticky top-0 z-30 flex items-center justify-between px-10 py-8 bg-white/40 dark:bg-brand-black/40 backdrop-blur-3xl">
+          <div className="hidden lg:block">
+            <h2 className="text-slate-900 dark:text-white text-xl font-black tracking-tight">Olá, {user.nome.split(' ')[0]} 👋</h2>
+            <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">Status do Ecossistema: <span className="text-brand-neon">Ativo</span></p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/[0.05] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-all"
+              title={theme === 'dark' ? "Modo Diurno" : "Modo Noturno"}
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button onClick={onProfileClick} className="flex items-center gap-3 pl-3 pr-1 py-1 rounded-full bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/[0.05] hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-all group">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{user.nome.split(' ')[0]}</span>
+              <div className="w-8 h-8 rounded-full border border-white/10 overflow-hidden bg-slate-200 dark:bg-white/5">
+                {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <UserIcon size={14} className="m-auto mt-2 text-slate-400" />}
+              </div>
+            </button>
+          </div>
         </header>
 
-        <div className="p-10 max-w-7xl mx-auto">
+        <div className="p-8 max-w-7xl mx-auto">
           {notification && (
-            <div className="fixed top-24 right-10 z-[100] animate-fade-in-up">
-              <div className={`px-8 py-5 rounded-[1.5rem] shadow-2xl backdrop-blur-2xl border flex items-center gap-4 ${notification.type === 'success' ? 'bg-brand-green/20 border-brand-green text-brand-neon' : 'bg-red-500/20 border-red-500 text-red-200'}`}>
-                {notification.type === 'success' ? <CheckCircle size={24} /> : <AlertCircle size={24} />}
-                <span className="font-black text-sm uppercase tracking-wider">{notification.message}</span>
+            <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
+              <div className={`px-6 py-3.5 rounded-full shadow-2xl backdrop-blur-3xl border flex items-center gap-3 ${notification.type === 'success' ? 'bg-brand-neon/10 border-brand-neon/40 text-brand-neon' : 'bg-red-500/10 border-red-500/40 text-red-400'}`}>
+                {notification.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+                <span className="font-extrabold text-[11px] uppercase tracking-[0.15em]">{notification.message}</span>
+                <button onClick={() => setNotification(null)} className="ml-2 opacity-50 hover:opacity-100 transition-opacity"><X size={14} /></button>
               </div>
             </div>
           )}
 
           {loading ? (
             <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-              <Loader2 className="animate-spin text-brand-neon" size={48} />
-              <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Sincronizando...</p>
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full border-2 border-brand-neon/10 border-t-brand-neon animate-spin"></div>
+                <div className="absolute inset-0 bg-brand-neon/20 blur-xl rounded-full"></div>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em]">Sincronizando Ecossistema</p>
             </div>
           ) : (
             <div className="animate-fade-in-up">
-              {/* Overview Tab */}
+              {/* Overview Tab - UI3.0 Minimalist (Borderless) */}
               {activeTab === 'overview' && (
-                <div className="space-y-12">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                    <div className="bg-gradient-to-br from-brand-neon to-[#00aa68] p-10 rounded-[2.5rem] text-black relative overflow-hidden group">
-                      <Trophy className="absolute -right-6 -bottom-6 opacity-20" size={140} />
-                      <div className="text-xs font-black uppercase tracking-[0.2em] opacity-60 mb-10">InovaPoints</div>
-                      <div className="text-6xl font-black tracking-tighter">{user.pontos || 0}</div>
+                <div className="space-y-16">
+                  {/* Stats Grid - Ultra Minimalist */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="bg-brand-neon p-10 rounded-[3rem] text-black relative overflow-hidden group hover:scale-[1.02] transition-all duration-500">
+                      <Trophy className="absolute -right-8 -bottom-8 opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700" size={160} />
+                      <div className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40 mb-16">Patrimônio de Inovação</div>
+                      <div className="text-7xl font-black tracking-tighter leading-none">{user.pontos || 0}</div>
+                      <div className="mt-4 text-[10px] font-black uppercase tracking-widest text-black/60">InovaPoints Ganhos</div>
                     </div>
-                    <div className="bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 p-10 rounded-[2.5rem]">
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-10">Grupos</div>
-                      <div className="text-6xl font-black tracking-tighter text-slate-900 dark:text-white">{user.gts?.length || 0}</div>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 p-10 rounded-[2.5rem]">
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-10">Artigos</div>
-                      <div className="text-6xl font-black tracking-tighter text-slate-900 dark:text-white">{user.artigos || 0}</div>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 p-10 rounded-[2.5rem]">
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-10">Ingressos</div>
-                      <div className="text-6xl font-black tracking-tighter text-slate-900 dark:text-white">{myTickets.length}</div>
-                    </div>
+                    {[
+                      { label: 'Unidades Ativas', value: user.gts?.length || 0, icon: Boxes },
+                      { label: 'Produção Intelectual', value: user.artigos || 0, icon: FileText },
+                      { label: 'Experiências', value: myTickets.length, icon: Ticket }
+                    ].map((stat, i) => (
+                      <div key={i} className="bg-slate-50 dark:bg-brand-surface p-10 rounded-[3rem] group transition-all duration-500 hover:bg-slate-100 dark:hover:bg-brand-elevated">
+                        <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] mb-16">{stat.label}</div>
+                        <div className="flex items-end justify-between">
+                          <div className="text-7xl font-black tracking-tighter leading-none text-slate-800 dark:text-slate-100">{stat.value}</div>
+                          <stat.icon size={28} className="text-brand-neon opacity-0 group-hover:opacity-40 transition-all duration-500 -translate-x-2 group-hover:translate-x-0" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                    <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-10">
-                       <h3 className="text-2xl font-black mb-8 flex items-center gap-4 text-slate-900 dark:text-white"><Star className="text-brand-neon" /> Lideranças</h3>
-                       <div className="space-y-4">
-                         {ranking.slice(0, 5).map((u, i) => (
-                           <div key={u.id} className="flex items-center justify-between p-5 bg-white dark:bg-white/5 rounded-[1.5rem] border border-slate-200 dark:border-white/5 shadow-sm dark:shadow-none">
-                             <div className="flex items-center gap-5">
-                               <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${i === 0 ? 'bg-brand-neon text-black' : 'bg-slate-100 dark:bg-white/10 text-slate-500'}`}>{i + 1}</span>
-                               <span className="font-bold text-slate-900 dark:text-white">{u.nome}</span>
-                             </div>
-                             <span className="text-brand-neon font-mono font-black">{u.pontos} pts</span>
-                           </div>
-                         ))}
-                       </div>
+                  {/* Activity Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                    <div className="lg:col-span-4 group">
+                      <h3 className="text-[11px] font-black mb-8 flex items-center justify-between text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">
+                        <span>Ranking de Lideranças</span>
+                        <Star size={14} className="text-brand-neon" />
+                      </h3>
+                      <div className="space-y-1">
+                        {ranking.slice(0, 5).map((u, i) => (
+                          <div key={u.id} className="flex items-center justify-between p-4 bg-transparent rounded-2xl transition-all hover:bg-slate-50 dark:hover:bg-white/[0.03] group/item">
+                            <div className="flex items-center gap-4">
+                              <span className={`text-[10px] font-black ${i === 0 ? 'text-brand-neon' : 'text-slate-300 dark:text-slate-700'}`}>0{i + 1}</span>
+                              <span className="font-bold text-sm text-slate-600 dark:text-slate-400 group-hover/item:text-slate-900 dark:group-hover/item:text-white transition-colors">{u.nome}</span>
+                            </div>
+                            <span className="text-slate-400 dark:text-slate-600 group-hover/item:text-brand-neon font-black text-xs transition-colors">{u.pontos} pt</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
-                    <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-10">
-                       <h3 className="text-2xl font-black mb-8 flex items-center gap-4 text-slate-900 dark:text-white"><TaskIcon className="text-brand-neon" /> Minhas Tarefas</h3>
-                       <div className="space-y-4">
-                         {mySortedTasks.slice(0, 5).map(task => (
-                           <div key={task.id} onClick={() => setSelectedTaskDetail(task)} className="p-5 bg-white dark:bg-white/5 rounded-[1.5rem] border border-slate-200 dark:border-white/5 cursor-pointer group shadow-sm dark:shadow-none">
-                             <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-brand-neon transition-colors line-clamp-1">{task.titulo}</h4>
-                             <div className="flex items-center gap-2 text-[10px] font-bold mt-2">
-                               <CalendarClock size={12} className="text-brand-neon" />
-                               <span className="text-slate-500 dark:text-slate-400">{task.prazo ? new Date(task.prazo).toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
-                             </div>
-                           </div>
-                         ))}
-                         {mySortedTasks.length === 0 && <p className="text-slate-400 dark:text-slate-600 text-center py-10 font-bold uppercase tracking-widest text-xs italic">Nenhuma pendente.</p>}
-                       </div>
+                    <div className="lg:col-span-4 group">
+                      <h3 className="text-[11px] font-black mb-8 flex items-center justify-between text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">
+                        <span>Fluxo de Tarefas</span>
+                        <PlusCircle size={14} className="opacity-40 cursor-pointer hover:opacity-100 transition-opacity" />
+                      </h3>
+                      <div className="space-y-1">
+                        {mySortedTasks.slice(0, 5).map(task => (
+                          <div key={task.id} onClick={() => setSelectedTaskDetail(task)} className="p-4 bg-transparent rounded-2xl cursor-pointer group/item transition-all hover:bg-slate-50 dark:hover:bg-white/[0.03]">
+                            <h4 className="text-sm font-bold text-slate-500 dark:text-slate-500 group-hover/item:text-slate-900 dark:group-hover/item:text-white transition-colors line-clamp-1">{task.titulo}</h4>
+                            <div className="h-0 group-hover/item:h-5 opacity-0 group-hover/item:opacity-100 transition-all duration-300 overflow-hidden flex items-center gap-2 text-[9px] font-black text-brand-neon mt-2 uppercase tracking-widest">
+                              <CalendarClock size={12} />
+                              <span>Expira em {task.prazo ? new Date(task.prazo).toLocaleDateString() : 'A definir'}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {mySortedTasks.length === 0 && <div className="flex flex-col items-center py-10 opacity-20"><CheckCircle size={32} className="mb-2" /><p className="text-[10px] font-bold uppercase tracking-widest text-center">Tudo pronto</p></div>}
+                      </div>
                     </div>
 
-                    <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-10">
-                       <h3 className="text-2xl font-black mb-8 flex items-center gap-4 text-slate-900 dark:text-white"><CalendarRange className="text-brand-neon" /> Agenda</h3>
-                       <div className="space-y-4">
-                         {events.slice(0, 5).map(evt => (
-                           <div key={evt.id} className="p-5 bg-white dark:bg-white/5 rounded-[1.5rem] border border-slate-200 dark:border-white/5 shadow-sm dark:shadow-none">
-                             <span className="text-[10px] font-black text-brand-neon uppercase">{evt.tipo}</span>
-                             <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-1 line-clamp-1">{evt.titulo}</h4>
-                             <div className="text-slate-500 dark:text-slate-500 text-xs mt-3 flex items-center gap-2"><MapPin size={14} /> {evt.local}</div>
-                           </div>
-                         ))}
-                       </div>
+                    <div className="lg:col-span-4 group">
+                      <h3 className="text-[11px] font-black mb-8 flex items-center justify-between text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">
+                        <span>Agenda Sincronizada</span>
+                        <CalendarRange size={14} className="opacity-40" />
+                      </h3>
+                      <div className="space-y-1">
+                        {events.slice(0, 5).map(evt => (
+                          <div key={evt.id} className="p-4 bg-transparent rounded-2xl group/item transition-all hover:bg-slate-50 dark:hover:bg-white/[0.03]">
+                            <div className="flex justify-between items-center mb-1">
+                              <h4 className="text-sm font-bold text-slate-500 dark:text-slate-500 group-hover/item:text-slate-900 dark:group-hover/item:text-white line-clamp-1 transition-colors">{evt.titulo}</h4>
+                              <span className="text-[8px] font-black text-slate-300 dark:text-slate-700 uppercase">{new Date(evt.data_inicio).toLocaleDateString()}</span>
+                            </div>
+                            <div className="h-0 group-hover/item:h-5 opacity-0 group-hover/item:opacity-100 transition-all duration-300 overflow-hidden text-brand-neon text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 mt-2">
+                              <MapPin size={10} /> {evt.local.split(',')[0]}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -591,495 +687,409 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               {/* Meus Artigos Tab */}
               {activeTab === 'articles' && (
                 <div className="space-y-12">
-                   <div className="flex justify-between items-end">
-                      <div>
-                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><FileText className="text-brand-neon" size={40} /> Meus Artigos</h2>
-                        <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Compartilhe conhecimento com o ecossistema.</p>
-                      </div>
-                      <button onClick={() => setIsCreatingArticle(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-black hover:text-white dark:hover:bg-white transition-all shadow-lg shadow-brand-neon/20"><PlusCircle size={20} /> ESCREVER ARTIGO</button>
-                   </div>
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><FileText className="text-brand-neon" size={40} /> Meus Artigos</h2>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Compartilhe conhecimento com o ecossistema.</p>
+                    </div>
+                    <button onClick={() => setIsCreatingArticle(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-black hover:text-white dark:hover:bg-white transition-all shadow-lg shadow-brand-neon/20"><PlusCircle size={20} /> ESCREVER ARTIGO</button>
+                  </div>
 
-                   {isCreatingArticle ? (
-                      <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-12 space-y-8 animate-fade-in-up">
-                         <div className="flex justify-between items-center"><h3 className="text-2xl font-black text-slate-900 dark:text-white">Novo Artigo</h3><button onClick={() => setIsCreatingArticle(false)} className="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={32} /></button></div>
-                         <div className="space-y-6">
-                            <input type="text" placeholder="Título impactante" value={newArticleData.titulo} onChange={(e) => setNewArticleData({...newArticleData, titulo: e.target.value})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-6 text-2xl font-black outline-none focus:border-brand-neon text-slate-900 dark:text-white" />
-                            <input type="text" placeholder="Subtítulo curto" value={newArticleData.subtitulo} onChange={(e) => setNewArticleData({...newArticleData, subtitulo: e.target.value})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-600 dark:text-slate-400 outline-none focus:border-brand-neon" />
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                               <div onClick={() => articleCoverInputRef.current?.click()} className="h-64 bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-brand-neon group transition-all">
-                                  {newArticleData.capa ? <img src={newArticleData.capa} className="w-full h-full object-cover rounded-[2.5rem]" /> : <><ImageIcon className="text-slate-300 dark:text-slate-700 group-hover:text-brand-neon" size={48} /><p className="text-slate-500 mt-4 text-sm font-bold">Capa do Artigo</p></>}
-                                  <input type="file" ref={articleCoverInputRef} className="hidden" onChange={handleArticleCoverUpload} />
-                               </div>
-                               <div className="md:col-span-2 space-y-4">
-                                  <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Conteúdo do Artigo</label>
-                                  
-                                  {/* Editor Toolbar */}
-                                  <div className="flex flex-wrap gap-1 p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-t-2xl">
-                                    <button onClick={() => execEditorCommand('bold')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Negrito"><Bold size={18} /></button>
-                                    <button onClick={() => execEditorCommand('italic')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Itálico"><Italic size={18} /></button>
-                                    <button onClick={() => execEditorCommand('formatBlock', 'h1')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Título 1"><Heading1 size={18} /></button>
-                                    <button onClick={() => execEditorCommand('formatBlock', 'h2')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Título 2"><Heading2 size={18} /></button>
-                                    <div className="w-px h-6 bg-slate-300 dark:bg-white/10 mx-1 self-center"></div>
-                                    <button onClick={() => execEditorCommand('insertUnorderedList')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Lista"><List size={18} /></button>
-                                    <button onClick={() => execEditorCommand('insertOrderedList')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Lista Numerada"><ListOrdered size={18} /></button>
-                                    <div className="w-px h-6 bg-slate-300 dark:bg-white/10 mx-1 self-center"></div>
-                                    <button onClick={() => contentImageInputRef.current?.click()} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10" title="Inserir Imagem"><ImageIcon size={18} /></button>
-                                    <input type="file" ref={contentImageInputRef} className="hidden" accept="image/*" onChange={handleContentImageUpload} />
-                                    <button onClick={() => execEditorCommand('removeFormat')} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-white/10 ml-auto" title="Limpar Formatação"><Type size={18} /></button>
+                  {isCreatingArticle ? (
+                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 border border-transparent rounded-[4rem] p-12 md:p-20 space-y-12 animate-fade-in relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-neon via-brand-green to-brand-neon"></div>
+
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon">
+                            <FileText size={24} />
+                          </div>
+                          <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Atelier de Escrita</h3>
+                        </div>
+                        <button onClick={() => setIsCreatingArticle(false)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all shadow-sm">
+                          <X size={24} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-8 max-w-5xl mx-auto">
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Título da Obra</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: O Futuro da IA no Alto Paraopeba"
+                            value={newArticleData.titulo}
+                            onChange={(e) => setNewArticleData({ ...newArticleData, titulo: e.target.value })}
+                            className="w-full bg-white dark:bg-brand-surface/50 border-none rounded-[2.5rem] p-10 text-4xl font-black outline-none focus:ring-4 focus:ring-brand-neon/10 text-slate-900 dark:text-white placeholder:text-slate-200 dark:placeholder:text-slate-800 transition-all"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
+                          <div className="md:col-span-4 space-y-4">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Identidade Visual</label>
+                            <div onClick={() => articleCoverInputRef.current?.click()} className="group h-80 bg-white dark:bg-brand-surface/50 border-2 border-dashed border-slate-100 dark:border-white/5 rounded-[3rem] flex flex-col items-center justify-center cursor-pointer hover:border-brand-neon transition-all relative overflow-hidden">
+                              {newArticleData.capa ? (
+                                <div className="relative w-full h-full">
+                                  <img src={newArticleData.capa} className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-black text-xs uppercase tracking-widest">
+                                    Alterar Imagem
                                   </div>
-
-                                  {/* Editable Area */}
-                                  <div 
-                                    ref={editorRef}
-                                    contentEditable
-                                    onInput={(e) => setNewArticleData(prev => ({ ...prev, conteudo: e.currentTarget.innerHTML }))}
-                                    className="w-full h-80 overflow-y-auto bg-white dark:bg-white/5 border border-t-0 border-slate-200 dark:border-white/10 rounded-b-2xl p-6 outline-none focus:border-brand-neon prose dark:prose-invert max-w-none text-slate-900 dark:text-white"
-                                    placeholder="Escreva seu artigo aqui..."
-                                  />
-                               </div>
+                                </div>
+                              ) : (
+                                <div className="text-center p-8">
+                                  <div className="w-16 h-16 bg-slate-50 dark:bg-brand-elevated rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:text-brand-neon transition-all">
+                                    <ImageIcon size={32} />
+                                  </div>
+                                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest leading-relaxed">Arraste uma capa premium ou clique para subir</p>
+                                </div>
+                              )}
+                              <input type="file" ref={articleCoverInputRef} className="hidden" onChange={handleArticleCoverUpload} />
                             </div>
-                         </div>
-                         <div className="flex gap-4 pt-8 border-t border-slate-200 dark:border-white/5"><button onClick={handleSaveArticle} disabled={isProcessingAction || !newArticleData.titulo} className="flex-1 bg-brand-neon text-black py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all">PUBLICAR PARA REVISÃO</button></div>
-                      </div>
-                   ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                         {myArticles.map(art => (
-                           <div key={art.id} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] overflow-hidden group shadow-sm dark:shadow-none">
-                              <div className="h-40 bg-slate-200 dark:bg-slate-900 relative">{art.capa && <img src={art.capa} className="w-full h-full object-cover opacity-60" />}<div className="absolute top-4 left-4 bg-black/60 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest text-white">{art.aprovado ? 'Aprovado' : 'Em Revisão'}</div></div>
-                              <div className="p-8">
-                                <h4 className="text-xl font-black mb-2 line-clamp-1 text-slate-900 dark:text-white">{art.titulo}</h4>
-                                <p className="text-sm text-slate-500 dark:text-slate-500 line-clamp-2 mb-6">{art.subtitulo}</p>
-                                <div className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-600 border-t border-slate-200 dark:border-white/5 pt-4">{new Date(art.created_at).toLocaleDateString()}</div>
+                          </div>
+
+                          <div className="md:col-span-8 space-y-4">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Corpo do Artigo</label>
+                            <div className="flex flex-col h-full bg-white dark:bg-brand-surface/50 rounded-[3rem] overflow-hidden border border-slate-100 dark:border-white/5 shadow-2xl shadow-black/5">
+                              {/* Modern Editor Toolbar */}
+                              <div className="flex items-center gap-2 p-4 bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
+                                <button onClick={() => execEditorCommand('bold')} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors" title="Negrito"><Bold size={18} /></button>
+                                <button onClick={() => execEditorCommand('italic')} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors" title="Itálico"><Italic size={18} /></button>
+                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-2"></div>
+                                <button onClick={() => execEditorCommand('formatBlock', 'h1')} className="px-3 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-[10px] font-black text-slate-500 transition-colors" title="H1">H1</button>
+                                <button onClick={() => execEditorCommand('formatBlock', 'h2')} className="px-3 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-[10px] font-black text-slate-500 transition-colors" title="H2">H2</button>
+                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-2"></div>
+                                <button onClick={() => execEditorCommand('insertUnorderedList')} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors"><List size={18} /></button>
+                                <button onClick={() => contentImageInputRef.current?.click()} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors"><ImageIcon size={18} /></button>
+                                <input type="file" ref={contentImageInputRef} className="hidden" accept="image/*" onChange={handleContentImageUpload} />
                               </div>
-                           </div>
-                         ))}
-                         {myArticles.length === 0 && <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[3rem] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest">Nenhum artigo ainda.</div>}
-                      </div>
-                   )}
-                </div>
-              )}
 
-              {/* Agenda Tab */}
-              {activeTab === 'agenda' && (
-                <div className="space-y-12">
-                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-                      <div>
-                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><CalendarRange className="text-brand-neon" size={40} /> Próximas Experiências</h2>
-                        <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Participe dos melhores momentos do Alto Paraopeba.</p>
-                      </div>
-                      <div className="flex gap-4 bg-slate-100 dark:bg-white/5 p-2 rounded-2xl border border-slate-200 dark:border-white/10">
-                        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-transparent text-xs font-black uppercase p-2 focus:outline-none text-slate-700 dark:text-white"><option value="all">Mês</option>{monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
-                        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-transparent text-xs font-black uppercase p-2 focus:outline-none text-slate-700 dark:text-white"><option value="all">Ano</option><option value={2024}>2024</option><option value={2025}>2025</option></select>
-                      </div>
-                   </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                      {prioritizedEvents.map(evt => {
-                        const isInscribed = myTickets.some(t => t.evento_id === evt.id);
-                        return (
-                          <div key={evt.id} onClick={() => setSelectedEventDetails(evt)} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] overflow-hidden hover:border-brand-neon/30 transition-all cursor-pointer group shadow-sm dark:shadow-none">
-                             <div className="h-44 bg-slate-200 dark:bg-slate-900 relative">
-                               {evt.imagem_capa && <img src={evt.imagem_capa} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />}
-                               <div className="absolute top-4 left-4 flex gap-2">
-                                  <span className="bg-black/60 px-3 py-1 rounded-full text-[8px] font-black uppercase text-brand-neon">
-                                    {evt.tipo}
-                                  </span>
-                                  {isInscribed && <span className="bg-brand-neon text-black px-3 py-1 rounded-full text-[8px] font-black uppercase">Confirmado</span>}
-                               </div>
-                             </div>
-                             <div className="p-8">
-                                <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">{new Date(evt.data_inicio).toLocaleDateString()} • {evt.local}</div>
-                                <h3 className="text-xl font-black mb-4 group-hover:text-brand-neon transition-colors text-slate-900 dark:text-white">{evt.titulo}</h3>
-                                <div className="flex justify-between items-center pt-4 border-t border-slate-200 dark:border-white/5">
-                                   <span className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-600">{evt.vagas ? `${(eventStats[evt.id] || 0)}/${evt.vagas} vagas` : 'Aberto'}</span>
-                                   <span className="text-brand-neon font-black text-[10px] uppercase">Detalhes <ArrowRight size={14} className="inline ml-1" /></span>
-                                </div>
-                             </div>
-                          </div>
-                        )
-                      })}
-                   </div>
-
-                   {selectedEventDetails && (
-                     <div className="fixed inset-0 z-[100] bg-white dark:bg-black flex flex-col animate-fade-in-up transition-colors duration-300">
-                        <div className="h-20 border-b border-slate-200 dark:border-white/10 flex items-center justify-between px-10 bg-white/80 dark:bg-black/80 backdrop-blur-xl">
-                          <button onClick={() => setSelectedEventDetails(null)} className="flex items-center gap-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase font-black text-xs tracking-widest"><ArrowLeft size={20} /> Voltar</button>
-                          {!myTickets.some(t => t.evento_id === selectedEventDetails.id) && (
-                            <button onClick={() => handleWithdrawTicket(selectedEventDetails)} className="bg-brand-neon text-black px-8 py-3 rounded-xl font-black flex items-center gap-2 hover:opacity-90 transition-all shadow-lg"><Ticket size={20} /> RETIRAR INGRESSO</button>
-                          )}
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-10 md:p-20">
-                          <div className="max-w-4xl mx-auto space-y-12">
-                             <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-none text-slate-900 dark:text-white">{selectedEventDetails.titulo}</h1>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                <div className="prose dark:prose-invert prose-lg max-w-none"><p className="text-slate-600 dark:text-slate-300 leading-relaxed">{selectedEventDetails.descricao}</p></div>
-                                <div className="bg-slate-50 dark:bg-white/5 p-10 rounded-[2.5rem] space-y-6 border border-slate-200 dark:border-white/5">
-                                   <div><label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest block mb-2">Localização</label><p className="font-bold text-xl text-slate-900 dark:text-white">{selectedEventDetails.local}</p></div>
-                                   <div><label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest block mb-2">Data e Hora</label><p className="font-bold text-xl text-slate-900 dark:text-white">{new Date(selectedEventDetails.data_inicio).toLocaleString()}</p></div>
-                                </div>
-                             </div>
+                              <div
+                                ref={editorRef}
+                                contentEditable
+                                onInput={(e) => setNewArticleData(prev => ({ ...prev, conteudo: e.currentTarget.innerHTML }))}
+                                className="flex-1 min-h-[400px] max-h-[600px] overflow-y-auto p-12 outline-none prose dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 selection:bg-brand-neon/30"
+                              />
+                            </div>
                           </div>
                         </div>
-                     </div>
-                   )}
-                </div>
-              )}
 
-              {/* Ingressos Tab */}
-              {activeTab === 'my_events' && (
-                <div className="space-y-12">
-                   <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><Ticket className="text-brand-neon" size={40} /> Meus Ingressos</h2>
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {myTickets.map(ticket => (
-                        <div key={ticket.id} onClick={() => setSelectedTicketForQr(ticket)} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-8 hover:border-brand-neon cursor-pointer transition-all shadow-sm dark:shadow-none">
-                           <div className="flex justify-between items-center mb-6"><div className="bg-brand-neon/10 text-brand-neon px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest">{ticket.status === 'checkin_realizado' ? 'Check-in OK' : 'Confirmado'}</div><QrIcon size={20} className="text-slate-400 dark:text-slate-700" /></div>
-                           <h3 className="text-2xl font-black mb-2 text-slate-900 dark:text-white">{ticket.evento?.titulo}</h3>
-                           <p className="text-slate-500 dark:text-slate-500 text-xs mb-8">{ticket.evento?.local}</p>
-                           <div className="pt-6 border-t border-slate-200 dark:border-white/5 flex items-center gap-2 text-brand-neon font-black text-[10px] uppercase tracking-widest">Exibir QR Code <ArrowRight size={14} /></div>
+                        <div className="flex justify-end pt-10">
+                          <button
+                            onClick={handleSaveArticle}
+                            disabled={isProcessingAction || !newArticleData.titulo}
+                            className="group bg-brand-neon text-black px-12 py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all flex items-center gap-4 uppercase tracking-[0.2em] text-xs"
+                          >
+                            Submeter para Curadoria
+                            <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {myArticles.map(art => (
+                        <div key={art.id} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] overflow-hidden group shadow-sm dark:shadow-none">
+                          <div className="h-40 bg-slate-200 dark:bg-slate-900 relative">{art.capa && <img src={art.capa} className="w-full h-full object-cover opacity-60" />}<div className="absolute top-4 left-4 bg-black/60 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest text-white">{art.aprovado ? 'Aprovado' : 'Em Revisão'}</div></div>
+                          <div className="p-8">
+                            <h4 className="text-xl font-black mb-2 line-clamp-1 text-slate-900 dark:text-white">{art.titulo}</h4>
+                            <p className="text-sm text-slate-500 dark:text-slate-500 line-clamp-2 mb-6">{art.subtitulo}</p>
+                            <div className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-600 border-t border-slate-200 dark:border-white/5 pt-4">{new Date(art.created_at).toLocaleDateString()}</div>
+                          </div>
                         </div>
                       ))}
-                      {myTickets.length === 0 && <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[3rem] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest">Sem ingressos.</div>}
-                   </div>
-
-                   {selectedTicketForQr && (
-                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
-                        <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTicketForQr(null)}></div>
-                        <div className="relative w-full max-w-md bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 flex flex-col items-center animate-fade-in-up">
-                           <button onClick={() => setSelectedTicketForQr(null)} className="absolute top-8 right-8 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={28} /></button>
-                           <h3 className="text-3xl font-black text-center mb-10 text-slate-900 dark:text-white">{selectedTicketForQr.evento?.titulo}</h3>
-                           <div className="bg-white p-6 rounded-[2.5rem] mb-10 border border-slate-200 dark:border-none shadow-xl"><QRCode value={selectedTicketForQr.id} size={250} /></div>
-                           <p className="text-slate-500 dark:text-slate-500 text-center text-sm font-medium">Apresente este código no check-in do evento.</p>
-                        </div>
-                     </div>
-                   )}
-                </div>
-              )}
-
-              {/* Tasks Tab */}
-              {activeTab === 'tasks' && (
-                <div className="space-y-12">
-                   <div className="flex justify-between items-end gap-8">
-                      <div>
-                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><ListTodo className="text-brand-neon" size={40} /> Gestão de Tarefas</h2>
-                        <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Hélices do Alto Paraopeba em ação.</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="bg-slate-100 dark:bg-white/5 p-1 rounded-2xl border border-slate-200 dark:border-white/10 flex">
-                            <button onClick={() => setTaskViewMode('list')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'list' ? 'bg-brand-neon text-black' : 'text-slate-400 dark:text-slate-500'}`}><LayoutList size={20} /></button>
-                            <button onClick={() => setTaskViewMode('calendar')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'calendar' ? 'bg-brand-neon text-black' : 'text-slate-400 dark:text-slate-500'}`}><Calendar size={20} /></button>
-                        </div>
-                        {user.governanca && (<button onClick={() => setIsAddingTask(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:opacity-90 transition-all shadow-lg"><PlusCircle size={20} /> NOVA TAREFA</button>)}
-                      </div>
-                   </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 p-6 rounded-[2rem]">
-                      <div className="space-y-2"><label className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Filtrar GT</label><select value={taskFilters.gt} onChange={(e) => setTaskFilters({...taskFilters, gt: e.target.value === 'all' ? 'all' : parseInt(e.target.value)})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white focus:outline-none"><option value="all">Todos</option>{gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}</select></div>
-                      <div className="space-y-2"><label className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Filtrar Responsável</label><select value={taskFilters.user} onChange={(e) => setTaskFilters({...taskFilters, user: e.target.value === 'all' ? 'all' : parseInt(e.target.value)})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white focus:outline-none"><option value="all">Todos</option>{members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></div>
-                   </div>
-
-                   {taskViewMode === 'list' ? (
-                     <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] overflow-hidden shadow-sm dark:shadow-none">
-                        <table className="w-full text-left">
-                          <thead className="bg-slate-100 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
-                              <tr><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Tarefa</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Status</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Prazo</th></tr>
-                          </thead>
-                          <tbody>
-                              {filteredTasks.map(t => (
-                                <tr key={t.id} onClick={() => setSelectedTaskDetail(t)} className="border-b border-slate-200 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/[0.02] cursor-pointer group">
-                                    <td className="px-10 py-8"><p className="font-black text-slate-900 dark:text-white text-lg group-hover:text-brand-neon transition-colors">{t.titulo}</p><p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{t.gt?.gt || 'Geral'}</p></td>
-                                    <td className="px-10 py-8"><div className={`inline-block px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${t.status === 'Concluído' ? 'text-brand-neon border border-brand-neon/30 bg-brand-neon/5' : 'text-orange-500 dark:text-orange-400 border border-orange-500/30'}`}>{t.status}</div></td>
-                                    <td className="px-10 py-8 text-slate-500 dark:text-slate-400 font-bold text-sm">{t.prazo ? new Date(t.prazo).toLocaleDateString() : '-'}</td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                     </div>
-                   ) : (
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 p-6 rounded-[2rem]">
-                            <div className="flex items-center gap-2 bg-slate-100 dark:bg-white/5 p-1 rounded-xl border border-slate-200 dark:border-white/10">
-                                <button onClick={() => setCalendarViewType('month')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${calendarViewType === 'month' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>Mês</button>
-                                <button onClick={() => setCalendarViewType('week')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${calendarViewType === 'week' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>Semana</button>
-                                <button onClick={() => setCalendarViewType('day')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${calendarViewType === 'day' ? 'bg-brand-neon text-black' : 'text-slate-500'}`}>Dia</button>
-                            </div>
-                            <div className="flex items-center gap-4"><button onClick={() => navigateCalendar(-1)} className="p-3 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"><ChevronLeft size={20} /></button><h4 className="text-xl font-black text-slate-900 dark:text-white min-w-[200px] text-center">{calendarAnchorDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h4><button onClick={() => navigateCalendar(1)} className="p-3 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"><ChevronRightIcon size={20} /></button></div>
-                            <button onClick={() => setCalendarAnchorDate(new Date())} className="px-6 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-xs font-black uppercase text-slate-700 dark:text-white">Hoje</button>
-                        </div>
-                        <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] overflow-hidden p-8">
-                            <div className={`grid ${calendarViewType === 'day' ? 'grid-cols-1' : 'grid-cols-7'} gap-px bg-slate-200 dark:bg-white/10 rounded-2xl overflow-hidden`}>
-                                {calendarDays.map((day, i) => {
-                                    const key = day.date.toISOString().split('T')[0];
-                                    const dayTasks = tasksByDay[key] || [];
-                                    return (
-                                        <div key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, day.date)} className={`min-h-[140px] p-4 border-slate-200 dark:border-white/5 border bg-white dark:bg-[#0a0a0a] ${!day.currentPeriod ? 'opacity-20' : ''}`}>
-                                            <div className="text-xs font-black text-slate-400 dark:text-slate-600 mb-2">{day.date.getDate()}</div>
-                                            <div className="space-y-1">
-                                                {dayTasks.map(t => (
-                                                    <div key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData("taskId", t.id.toString())} onClick={() => setSelectedTaskDetail(t)} className={`text-[8px] p-1.5 rounded bg-brand-neon/10 text-brand-neon border border-brand-neon/20 font-black cursor-pointer truncate`}>{t.titulo}</div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
+                      {myArticles.length === 0 && <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[3rem] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest">Nenhum artigo ainda.</div>}
                     </div>
-                   )}
+                  )}
                 </div>
               )}
 
-              {/* Modal Detalhes Tarefa */}
-              {selectedTaskDetail && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
-                  <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTaskDetail(null)}></div>
-                  <div className="relative w-full max-w-4xl bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-h-[90vh] overflow-y-auto shadow-2xl">
-                    <button onClick={() => setSelectedTaskDetail(null)} className="absolute top-8 right-8 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={32} /></button>
-                    <div className="space-y-10">
-                       <div><h3 className="text-4xl font-black text-slate-900 dark:text-white">{selectedTaskDetail.titulo}</h3><p className="text-slate-500 dark:text-slate-500 mt-2">{selectedTaskDetail.descricao || 'Sem descrição.'}</p></div>
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                          <div className="space-y-6">
-                             <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-white/5 flex items-center justify-center border border-slate-200 dark:border-white/10"><UserIcon size={20} className="text-slate-600 dark:text-slate-300" /></div><div><label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase">Responsável</label><p className="font-bold text-slate-900 dark:text-white">{selectedTaskDetail.responsavel?.nome || 'Ninguém'}</p></div></div>
-                             <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-brand-neon border border-slate-200 dark:border-white/10"><CalendarClock size={20} /></div><div><label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase">Entrega</label><p className="font-bold text-slate-900 dark:text-white">{selectedTaskDetail.prazo ? new Date(selectedTaskDetail.prazo).toLocaleDateString() : 'A definir'}</p></div></div>
-                             <div className="pt-6 border-t border-slate-200 dark:border-white/5">
-                               <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 block mb-4">Atualizar Status</label>
-                               <div className="flex gap-2">
-                                 {['Pendente', 'Em Andamento', 'Concluído'].map(s => (
-                                   <button 
-                                     key={s} 
-                                     onClick={() => handleUpdateTaskField(selectedTaskDetail.id, 'status', s)} 
-                                     className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${selectedTaskDetail.status === s ? 'bg-brand-neon text-black' : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}
-                                   >
-                                     {s}
-                                   </button>
-                                 ))}
-                               </div>
-                             </div>
-                          </div>
-                          <div className="space-y-6">
-                             <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 flex items-center gap-2"><MessageSquare size={14} /> Discussão</label>
-                             <div className="h-[250px] bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl p-4 overflow-y-auto space-y-4">{taskComments.map(c => <div key={c.id} className="text-xs"><span className="font-black text-brand-neon block mb-1">{c.autor?.nome}</span><p className="bg-white dark:bg-white/5 p-3 rounded-xl rounded-tl-none text-slate-700 dark:text-slate-300 border border-slate-100 dark:border-none shadow-sm dark:shadow-none">{c.conteudo}</p></div>)}</div>
-                             <div className="relative"><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handlePostComment()} placeholder="Escreva..." className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-xs pr-12 text-slate-900 dark:text-white" /><button onClick={handlePostComment} className="absolute right-4 top-4 text-brand-neon"><Send size={16} /></button></div>
-                          </div>
-                       </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Modal Nova Tarefa */}
-              {isAddingTask && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
-                  <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl" onClick={() => setIsAddingTask(false)}></div>
-                  <div className="relative w-full max-w-2xl bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 shadow-2xl">
-                    <button onClick={() => setIsAddingTask(false)} className="absolute top-8 right-8 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={32} /></button>
-                    <h3 className="text-3xl font-black mb-10 text-slate-900 dark:text-white">Nova Tarefa</h3>
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Título da Atividade</label>
-                        <input type="text" value={newTaskData.titulo} onChange={(e) => setNewTaskData({...newTaskData, titulo: e.target.value})} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-slate-900 dark:text-white outline-none focus:border-brand-neon" placeholder="Ex: Organizar Meetup Mensal" />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">GT Responsável</label>
-                          <select value={newTaskData.gt_id} onChange={(e) => setNewTaskData({...newTaskData, gt_id: parseInt(e.target.value)})} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-slate-700 dark:text-white outline-none focus:border-brand-neon">
-                            <option value="">Selecione o GT</option>
-                            {gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Membro Responsável</label>
-                          <select value={newTaskData.responsavel_id} onChange={(e) => setNewTaskData({...newTaskData, responsavel_id: parseInt(e.target.value)})} className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-slate-700 dark:text-white outline-none focus:border-brand-neon">
-                            <option value="">Selecione o Membro</option>
-                            {members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Prazo de Entrega</label>
-                        <input type="date" value={newTaskData.prazo} onChange={(e) => setNewTaskData({...newTaskData, prazo: e.target.value})} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-slate-700 dark:text-white outline-none focus:border-brand-neon" />
-                      </div>
-                      <button onClick={handleCreateTask} disabled={isProcessingAction} className="w-full bg-brand-neon text-black py-5 rounded-2xl font-black shadow-xl hover:opacity-90 transition-all mt-6">CRIAR TAREFA</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Gamification Tab Content */}
-              {activeTab === 'gamification' && (
-                <div className="space-y-12">
-                   <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
-                     <Trophy className="text-brand-neon" size={40} /> Gamificação e Score
-                   </h2>
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                      <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-12 shadow-sm dark:shadow-none">
-                        <h3 className="text-2xl font-black mb-8 flex items-center gap-4 text-slate-900 dark:text-white"><Settings size={24} className="text-brand-neon" /> Regras de Pontuação</h3>
-                        <div className="space-y-4">
-                          {rules.map(rule => (
-                            <div key={rule.id} className="flex items-center justify-between p-6 bg-white dark:bg-white/5 rounded-[1.5rem] border border-slate-200 dark:border-white/5 group relative overflow-hidden shadow-sm dark:shadow-none">
-                               <span className="font-bold text-slate-700 dark:text-slate-300 text-lg">{rule.acao}</span>
-                               <div className="flex items-center gap-3 relative z-10">
-                                 {editingRuleId === rule.id ? (
-                                   <div className="flex items-center gap-2 animate-fade-in-up">
-                                      <input 
-                                        type="number" 
-                                        value={editingValue} 
-                                        onChange={(e) => setEditingValue(e.target.value)}
-                                        className="w-20 bg-slate-100 dark:bg-black/50 border border-brand-neon/50 rounded-lg px-2 py-1 text-center font-mono font-black text-brand-neon focus:outline-none focus:ring-1 focus:ring-brand-neon"
-                                        autoFocus
-                                      />
-                                      <button onClick={handleSaveRule} className="p-2 bg-brand-neon text-black rounded-lg hover:scale-110 transition-transform">
-                                        <Save size={16} />
-                                      </button>
-                                      <button onClick={() => setEditingRuleId(null)} className="p-2 bg-red-500/20 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all">
-                                        <X size={16} />
-                                      </button>
-                                   </div>
-                                 ) : (
-                                   <>
-                                     <span className="bg-brand-neon/10 text-brand-neon px-5 py-2 rounded-xl font-mono font-black text-xl border border-brand-neon/20">+{rule.valor}</span>
-                                     {user.governanca && (
-                                       <button 
-                                        onClick={() => handleEditRule(rule)} 
-                                        className="p-2 text-slate-400 dark:text-slate-500 hover:text-brand-neon transition-colors opacity-0 group-hover:opacity-100"
-                                       >
-                                         <Edit3 size={18} />
-                                       </button>
-                                     )}
-                                   </>
-                                 )}
-                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-12 shadow-sm dark:shadow-none">
-                        <h3 className="text-2xl font-black mb-8 flex items-center gap-4 text-slate-900 dark:text-white"><History size={24} className="text-brand-neon" /> Extrato de Atividades</h3>
-                        <div className="space-y-4">
-                          {logs.map(log => (
-                            <div key={log.id} className="p-5 bg-white dark:bg-white/5 rounded-[1.5rem] border border-slate-200 dark:border-white/5 flex items-center justify-between shadow-sm dark:shadow-none">
-                               <div>
-                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">{log.motivo || 'Atribuição Automática'}</p>
-                                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">{new Date(log.created_at).toLocaleString('pt-BR')}</span>
-                               </div>
-                               <span className="text-brand-green font-black text-xl">+{log.pontos_atribuidos}</span>
-                            </div>
-                          ))}
-                          {logs.length === 0 && <p className="text-slate-400 dark:text-slate-500 text-center py-10 font-bold">Nenhuma atividade pontuada ainda.</p>}
-                        </div>
-                      </div>
-                   </div>
-                </div>
-              )}
-
-              {/* Gestão de Artigos Tab (Admin) */}
-              {activeTab === 'articles_manage' && user.governanca && (
+              {/* Agenda Tab - UI3.0 Refined */}
+              {activeTab === 'agenda' && (
                 <div className="space-y-12">
                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                     <div>
                       <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
-                        <CheckSquare className="text-brand-neon" size={40} /> Curadoria de Conteúdo
+                        <CalendarRange className="text-brand-neon" size={40} /> Próximas Experiências
                       </h2>
-                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Valide o conhecimento que entra no ecossistema.</p>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Participe dos melhores momentos do Alto Paraopeba.</p>
                     </div>
-                    <div className="flex gap-2 bg-slate-100 dark:bg-white/5 p-1 rounded-2xl border border-slate-200 dark:border-white/10">
-                      <button 
-                        onClick={() => setArticleFilter('pending')} 
-                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${articleFilter === 'pending' ? 'bg-brand-neon text-black' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                      >
-                        Pendentes ({articlesInReview.length})
-                      </button>
-                      <button 
-                        onClick={() => setArticleFilter('active')} 
-                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${articleFilter === 'active' ? 'bg-brand-neon text-black' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                      >
-                        Ativos ({activeArticles.length})
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] overflow-hidden shadow-sm dark:shadow-none">
-                    <table className="w-full text-left">
-                      <thead className="bg-slate-100 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
-                        <tr>
-                          <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Artigo</th>
-                          <th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredArticlesForManage.map(art => (
-                          <tr key={art.id} className="border-b border-slate-200 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/[0.02] transition-colors">
-                            <td className="px-10 py-8">
-                              <div className="flex items-center gap-6">
-                                <div className="w-20 h-12 bg-slate-200 dark:bg-slate-900 rounded-lg overflow-hidden border border-slate-300 dark:border-white/5 flex-shrink-0">
-                                  {art.capa ? <img src={art.capa} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-slate-400 dark:text-slate-700" /></div>}
-                                </div>
-                                <div>
-                                  <h4 className="font-black text-slate-900 dark:text-white text-lg">{art.titulo}</h4>
-                                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Por ID: {art.autor.substring(0,8)}... • {new Date(art.created_at).toLocaleDateString()}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-10 py-8 text-right">
-                              <div className="flex justify-end gap-3">
-                                <button 
-                                  onClick={() => setSelectedArticleForReview(art)}
-                                  className="p-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl text-slate-400 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm dark:shadow-none"
-                                  title="Visualizar Conteúdo"
-                                >
-                                  <Eye size={18} />
-                                </button>
-                                {!art.aprovado && (
-                                  <button 
-                                    onClick={() => handleApproveArticle(art.id)}
-                                    disabled={isProcessingAction}
-                                    className="px-6 py-2 bg-brand-neon text-black rounded-xl text-[10px] font-black uppercase hover:scale-105 transition-all shadow-lg shadow-brand-neon/20"
-                                  >
-                                    Aprovar
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                        {filteredArticlesForManage.length === 0 && (
-                          <tr>
-                            <td colSpan={2} className="px-10 py-20 text-center text-slate-400 dark:text-slate-600 font-black uppercase tracking-[0.2em] text-xs italic">
-                              Nenhum artigo encontrado nesta categoria.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Modal de Revisão */}
-                  {selectedArticleForReview && (
-                    <div className="fixed inset-0 z-[100] bg-white dark:bg-black flex flex-col animate-fade-in-up transition-colors duration-300">
-                      <div className="h-20 border-b border-slate-200 dark:border-white/10 flex items-center justify-between px-10 bg-white/80 dark:bg-black/80 backdrop-blur-xl">
-                        <button onClick={() => setSelectedArticleForReview(null)} className="flex items-center gap-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase font-black text-xs tracking-widest">
-                          <ArrowLeft size={20} /> Fechar
+                    <div className="flex flex-wrap md:flex-nowrap gap-4">
+                      {user.governanca && (
+                        <button
+                          onClick={() => setIsAddingEvent(true)}
+                          className="flex items-center gap-3 bg-brand-neon text-black px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-neon hover:scale-105 transition-all"
+                        >
+                          <Plus size={18} /> Novo Evento
                         </button>
-                        {!selectedArticleForReview.aprovado && (
-                          <button 
-                            onClick={() => handleApproveArticle(selectedArticleForReview.id)}
-                            disabled={isProcessingAction}
-                            className="bg-brand-neon text-black px-8 py-3 rounded-xl font-black flex items-center gap-2 hover:opacity-90 transition-all shadow-lg"
-                          >
-                            <CheckCircle size={20} /> APROVAR AGORA
-                          </button>
-                        )}
+                      )}
+                      <div className="flex gap-4 bg-slate-50 dark:bg-brand-surface p-2 rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm">
+                        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-transparent text-[10px] font-black uppercase p-3 focus:outline-none text-slate-600 dark:text-white cursor-pointer"><option value="all">Todo o ano</option>{monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+                        <div className="w-px h-6 bg-slate-200 dark:bg-white/10 self-center"></div>
+                        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-transparent text-[10px] font-black uppercase p-3 focus:outline-none text-slate-600 dark:text-white cursor-pointer"><option value="all">Ano</option><option value={2025}>2025</option><option value={2026}>2026</option></select>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-10 md:p-20">
-                        <div className="max-w-4xl mx-auto space-y-12">
-                          <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-none text-slate-900 dark:text-white">{selectedArticleForReview.titulo}</h1>
-                          <p className="text-2xl text-slate-500 dark:text-slate-400 font-medium">{selectedArticleForReview.subtitulo}</p>
-                          {selectedArticleForReview.capa && (
-                            <div className="w-full h-[400px] rounded-[3rem] overflow-hidden border border-slate-200 dark:border-white/10">
-                              <img src={selectedArticleForReview.capa} className="w-full h-full object-cover" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {prioritizedEvents.map(evt => {
+                      const isInscribed = myTickets.some(t => t.evento_id === evt.id);
+                      const eventDate = new Date(evt.data_inicio);
+                      return (
+                        <div key={evt.id} onClick={() => setSelectedEventDetails(evt)} className="group relative bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] overflow-hidden hover:bg-white dark:hover:bg-brand-elevated transition-all duration-500 cursor-pointer border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5">
+                          <div className="h-56 bg-slate-200 dark:bg-slate-900 relative overflow-hidden">
+                            {evt.imagem_capa ? (
+                              <img src={evt.imagem_capa} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-neon/20 to-transparent">
+                                <Calendar size={48} className="text-brand-neon/40" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity"></div>
+
+                            <div className="absolute top-6 left-6 flex flex-col gap-2">
+                              <span className="bg-brand-neon text-black px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider self-start shadow-lg">
+                                {evt.tipo}
+                              </span>
+                              {isInscribed && (
+                                <span className="bg-white/20 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider self-start border border-white/10">
+                                  Inscrito
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="absolute bottom-6 left-6 right-6">
+                              <div className="flex items-center gap-3 text-white">
+                                <div className="bg-white/20 backdrop-blur-md p-2 rounded-xl border border-white/20">
+                                  <span className="block text-sm font-black leading-none">{eventDate.getDate()}</span>
+                                  <span className="block text-[8px] font-black uppercase text-brand-neon">{monthNames[eventDate.getMonth()].substring(0, 3)}</span>
+                                </div>
+                                <div className="min-w-0">
+                                  <h3 className="text-xl font-black text-white leading-tight truncate">{evt.titulo}</h3>
+                                  <div className="flex items-center gap-2 text-[9px] font-bold text-white/60 mt-1 uppercase tracking-widest truncate">
+                                    <MapPin size={10} className="text-brand-neon" /> {evt.local.split(',')[0]}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-8">
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium line-clamp-2 mb-6 min-h-[40px] leading-relaxed">
+                              {evt.descricao || "Participe deste encontro incrível com a comunidade INOVAP."}
+                            </p>
+                            <div className="flex justify-between items-center pt-6 border-t border-slate-200 dark:border-white/5">
+                              <div className="flex -space-x-2">
+                                {[1, 2, 3].map(i => (
+                                  <div key={i} className="w-6 h-6 rounded-full border-2 border-white dark:border-brand-surface bg-slate-200 dark:bg-brand-elevated overflow-hidden">
+                                    <UserIcon size={12} className="m-auto mt-1 text-slate-400" />
+                                  </div>
+                                ))}
+                                <span className="pl-4 text-[9px] font-black uppercase text-slate-400 dark:text-slate-600 self-center">+{eventStats[evt.id] || 0} confirmados</span>
+                              </div>
+                              <span className="text-brand-neon font-black text-[10px] uppercase tracking-widest flex items-center gap-2 group-hover:translate-x-1 transition-transform">
+                                Ver Detalhes <ChevronRightIcon size={14} />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {selectedEventDetails && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                      <div className="absolute inset-0 bg-white/80 dark:bg-black/95 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedEventDetails(null)}></div>
+                      <div className="relative w-full max-w-6xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[90vh] animate-fade-in-up">
+                        <div className="w-full md:w-2/5 h-64 md:h-full relative overflow-hidden shrink-0">
+                          {selectedEventDetails.imagem_capa ? (
+                            <img src={selectedEventDetails.imagem_capa} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-slate-900 flex items-center justify-center text-brand-neon">
+                              <Calendar size={80} />
                             </div>
                           )}
-                          <div className="prose dark:prose-invert prose-lg max-w-none">
-                            <div className="text-slate-600 dark:text-slate-300" dangerouslySetInnerHTML={{ __html: selectedArticleForReview.conteudo }} />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                          <div className="absolute bottom-12 left-12 right-12">
+                            <div className="flex flex-col gap-3">
+                              <span className="bg-brand-neon text-black px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest self-start">
+                                {selectedEventDetails.tipo}
+                              </span>
+                              <h1 className="text-4xl md:text-5xl font-black text-white leading-tight uppercase tracking-tighter shadow-sm">{selectedEventDetails.titulo}</h1>
+                            </div>
+                          </div>
+                          <button onClick={() => setSelectedEventDetails(null)} className="absolute top-10 left-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md text-white hover:bg-white hover:text-black transition-all">
+                            <X size={24} />
+                          </button>
+                        </div>
+
+                        <div className="flex-1 flex flex-col min-w-0">
+                          <div className="flex-1 overflow-y-auto p-12 md:p-20 space-y-12">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                              <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">O Propósito</label>
+                                <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium">
+                                  {selectedEventDetails.descricao || "Este encontro é um marco estratégico para o ecossistema, focado em gerar conexões de alto valor entre as hélices da inovação."}
+                                </p>
+                              </div>
+                              <div className="bg-slate-50/50 dark:bg-brand-surface/40 p-10 rounded-[3rem] space-y-8 border border-slate-100 dark:border-white/5">
+                                <div className="flex items-center gap-6">
+                                  <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
+                                    <MapPin size={24} />
+                                  </div>
+                                  <div>
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Local das Ideias</label>
+                                    <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">{selectedEventDetails.local.split(',').slice(0, 2).join(',')}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-6">
+                                  <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
+                                    <Calendar size={24} />
+                                  </div>
+                                  <div>
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Cronograma</label>
+                                    <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">
+                                      {new Date(selectedEventDetails.data_inicio).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-12 md:p-20 pt-0 bg-white/50 dark:bg-brand-surface/20 backdrop-blur-xl border-t border-slate-100 dark:border-white/5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-5">
+                                <div className="flex -space-x-4">
+                                  {[1, 2, 3, 4].map(i => <div key={i} className="w-12 h-12 rounded-2xl border-4 border-white dark:border-brand-surface bg-slate-200 overflow-hidden"><UserIcon size={20} className="m-auto mt-3 text-slate-400" /></div>)}
+                                </div>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">+{eventStats[selectedEventDetails.id] || 0} Visionários confirmados</p>
+                              </div>
+                              {!myTickets.some(t => t.evento_id === selectedEventDetails.id) ? (
+                                <button
+                                  onClick={() => handleWithdrawTicket(selectedEventDetails)}
+                                  className="group bg-brand-neon text-black px-12 py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all flex items-center gap-4 uppercase tracking-[0.2em] text-[10px]"
+                                >
+                                  Resgatar Acesso
+                                  <Zap size={20} className="group-hover:rotate-12 transition-transform" />
+                                </button>
+                              ) : (
+                                <div className="flex items-center gap-4 text-brand-green bg-brand-green/10 px-10 py-6 rounded-[2rem] border border-brand-green/20">
+                                  <CheckCircle size={20} />
+                                  <span className="font-black text-[10px] uppercase tracking-widest">Sua presença está confirmada</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isAddingEvent && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                      <div className="absolute inset-0 bg-white/80 dark:bg-black/95 backdrop-blur-3xl" onClick={() => setIsAddingEvent(false)}></div>
+                      <div className="relative w-full max-w-4xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4rem] overflow-hidden shadow-2xl animate-fade-in-up">
+                        <div className="p-12 md:p-16 space-y-12">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h2 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white uppercase">Fundar Nova Experiência</h2>
+                              <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Crie um marco estratégico para o ecossistema.</p>
+                            </div>
+                            <button onClick={() => setIsAddingEvent(false)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-red-500 transition-all">
+                              <X size={24} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-6">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Nome do Evento</label>
+                                <input
+                                  className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white"
+                                  placeholder="Ex: Summit Tech 2026"
+                                  value={newEventData.titulo}
+                                  onChange={(e) => setNewEventData({ ...newEventData, titulo: e.target.value })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Localização</label>
+                                <input
+                                  className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white"
+                                  placeholder="Ex: Centro de Inovação, Ouro Branco"
+                                  value={newEventData.local}
+                                  onChange={(e) => setNewEventData({ ...newEventData, local: e.target.value })}
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Data e Hora</label>
+                                  <input
+                                    type="datetime-local"
+                                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white"
+                                    value={newEventData.data_inicio}
+                                    onChange={(e) => setNewEventData({ ...newEventData, data_inicio: e.target.value })}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Vagas</label>
+                                  <input
+                                    type="number"
+                                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white"
+                                    value={newEventData.vagas}
+                                    onChange={(e) => setNewEventData({ ...newEventData, vagas: parseInt(e.target.value) })}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-6">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Tipo de Ação</label>
+                                <select
+                                  className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white appearance-none"
+                                  value={newEventData.tipo}
+                                  onChange={(e) => setNewEventData({ ...newEventData, tipo: e.target.value })}
+                                >
+                                  <option>Workshop</option>
+                                  <option>Meetup</option>
+                                  <option>Congresso</option>
+                                  <option>Happy Hour</option>
+                                  <option>Demo Day</option>
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Link da Imagem (Capa)</label>
+                                <input
+                                  className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white"
+                                  placeholder="URL da imagem..."
+                                  value={newEventData.imagem_capa}
+                                  onChange={(e) => setNewEventData({ ...newEventData, imagem_capa: e.target.value })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Propósito (Descrição)</label>
+                                <textarea
+                                  className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white h-32 resize-none"
+                                  placeholder="Descreva o impacto esperado deste encontro..."
+                                  value={newEventData.descricao}
+                                  onChange={(e) => setNewEventData({ ...newEventData, descricao: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-4 pt-4">
+                            <button
+                              onClick={() => setIsAddingEvent(false)}
+                              className="flex-1 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 py-6 rounded-[2rem] font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-white/10 transition-all"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={handleCreateEvent}
+                              className="w-[70%] bg-brand-neon text-black py-6 rounded-[2rem] font-black text-[11px] uppercase tracking-widest shadow-neon hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                            >
+                              <Plus size={20} /> Publicar no Ecossistema
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1088,185 +1098,863 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 </div>
               )}
 
-              {/* Gestão GTs */}
+              {/* Ingressos Tab - UI3.0 Refined */}
+              {activeTab === 'my_events' && (
+                <div className="space-y-12">
+                  <div>
+                    <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                      <Ticket className="text-brand-neon" size={40} /> Minhas Experiências
+                    </h2>
+                    <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Seus acessos exclusivos ao futuro do ecossistema.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {myTickets.map(ticket => (
+                      <div key={ticket.id} onClick={() => setSelectedTicketForQr(ticket)} className="group relative bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-10 hover:bg-white dark:hover:bg-brand-elevated transition-all duration-500 cursor-pointer border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 overflow-hidden">
+                        {/* Ticket Decorative Elements */}
+                        <div className="absolute top-1/2 -left-4 w-8 h-8 bg-white dark:bg-brand-black rounded-full -translate-y-1/2 border border-slate-200 dark:border-white/5"></div>
+                        <div className="absolute top-1/2 -right-4 w-8 h-8 bg-white dark:bg-brand-black rounded-full -translate-y-1/2 border border-slate-200 dark:border-white/5"></div>
+
+                        <div className="flex justify-between items-start mb-8 relative">
+                          <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${ticket.status === 'checkin_realizado' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-neon/10 text-brand-neon'}`}>
+                            {ticket.status === 'checkin_realizado' ? 'Impacto Validado' : 'Acesso Confirmado'}
+                          </div>
+                          <div className="w-12 h-12 bg-white dark:bg-brand-surface rounded-2xl flex items-center justify-center border border-slate-200 dark:border-white/10 group-hover:border-brand-neon/30 transition-colors">
+                            <QrIcon size={24} className="text-slate-400 group-hover:text-brand-neon transition-colors" />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 mb-10">
+                          <h3 className="text-2xl font-black text-slate-900 dark:text-white leading-tight line-clamp-2 uppercase tracking-tighter group-hover:text-brand-neon transition-colors">
+                            {ticket.evento?.titulo}
+                          </h3>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">
+                            <Calendar size={12} className="text-brand-neon" /> {ticket.evento ? new Date(ticket.evento.data_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }) : '-'}
+                          </div>
+                        </div>
+
+                        <div className="pt-8 border-t border-dashed border-slate-200 dark:border-white/10 flex items-center justify-between">
+                          <div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Localização</p>
+                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400 truncate max-w-[150px]">{ticket.evento?.local.split(',')[0]}</p>
+                          </div>
+                          <button className="flex items-center gap-2 text-[10px] font-black uppercase text-brand-neon hover:translate-x-1 transition-transform">
+                            Visualizar <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {myTickets.length === 0 && (
+                      <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[3.5rem] bg-slate-50/30 dark:bg-transparent">
+                        <Ticket size={48} className="mx-auto text-slate-200 dark:text-slate-800 mb-6" />
+                        <h3 className="text-xl font-black text-slate-300 dark:text-slate-700 uppercase tracking-widest">Nenhuma experiência resgatada</h3>
+                        <p className="text-slate-500 mt-4 text-sm font-medium">Explore a agenda e participe do ecossistema.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedTicketForQr && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
+                      <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTicketForQr(null)}></div>
+                      <div className="relative w-full max-w-md bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 flex flex-col items-center animate-fade-in-up">
+                        <button onClick={() => setSelectedTicketForQr(null)} className="absolute top-8 right-8 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={28} /></button>
+                        <h3 className="text-3xl font-black text-center mb-10 text-slate-900 dark:text-white">{selectedTicketForQr.evento?.titulo}</h3>
+                        <div className="bg-white p-6 rounded-[2.5rem] mb-10 border border-slate-200 dark:border-none shadow-xl"><QRCode value={selectedTicketForQr.id} size={250} /></div>
+                        <p className="text-slate-500 dark:text-slate-500 text-center text-sm font-medium">Apresente este código no check-in do evento.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tasks Tab */}
+              {activeTab === 'tasks' && (
+                <div className="space-y-12">
+                  <div className="flex justify-between items-end gap-8">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><ListTodo className="text-brand-neon" size={40} /> Gestão de Tarefas</h2>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Hélices do Alto Paraopeba em ação.</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="bg-slate-100 dark:bg-white/5 p-1 rounded-2xl border border-slate-200 dark:border-white/10 flex">
+                        <button onClick={() => setTaskViewMode('list')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'list' ? 'bg-brand-neon text-black' : 'text-slate-400 dark:text-slate-500'}`}><LayoutList size={20} /></button>
+                        <button onClick={() => setTaskViewMode('calendar')} className={`p-3 rounded-xl transition-all ${taskViewMode === 'calendar' ? 'bg-brand-neon text-black' : 'text-slate-400 dark:text-slate-500'}`}><Calendar size={20} /></button>
+                      </div>
+                      {user.governanca && (<button onClick={() => setIsAddingTask(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:opacity-90 transition-all shadow-lg"><PlusCircle size={20} /> NOVA TAREFA</button>)}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-6 bg-slate-50 dark:bg-brand-surface p-6 rounded-[2.5rem]">
+                    <div className="flex-1 space-y-2">
+                      <label className="text-[8px] font-black uppercase text-slate-400 dark:text-slate-600 tracking-[0.3em] ml-4">Unidade de Atuação</label>
+                      <select value={taskFilters.gt} onChange={(e) => setTaskFilters({ ...taskFilters, gt: e.target.value === 'all' ? 'all' : parseInt(e.target.value) })} className="w-full bg-white dark:bg-brand-elevated rounded-2xl px-6 py-4 text-xs font-bold text-slate-800 dark:text-white outline-none appearance-none cursor-pointer hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-all">
+                        <option value="all">Sincronizar Todos os Grupos</option>
+                        {gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-[8px] font-black uppercase text-slate-400 dark:text-slate-600 tracking-[0.3em] ml-4">Responsável Direto</label>
+                      <select value={taskFilters.user} onChange={(e) => setTaskFilters({ ...taskFilters, user: e.target.value === 'all' ? 'all' : parseInt(e.target.value) })} className="w-full bg-white dark:bg-brand-elevated rounded-2xl px-6 py-4 text-xs font-bold text-slate-800 dark:text-white outline-none appearance-none cursor-pointer hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-all">
+                        <option value="all">Filtrar por Todos os Membros</option>
+                        {members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {taskViewMode === 'list' ? (
+                    <div className="bg-transparent overflow-hidden">
+                      <table className="w-full text-left border-separate border-spacing-y-3">
+                        <thead>
+                          <tr>
+                            <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Atividade</th>
+                            <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Progresso</th>
+                            <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Deadline</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredTasks.map(t => (
+                            <tr key={t.id} onClick={() => setSelectedTaskDetail(t)} className="group cursor-pointer">
+                              <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-l-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors">
+                                <p className="font-black text-slate-700 dark:text-slate-200 text-lg tracking-tight group-hover:text-brand-neon transition-colors">{t.titulo}</p>
+                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mt-1">{t.gt?.gt || 'Ecossistema'}</p>
+                              </td>
+                              <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors">
+                                <span className={`inline-flex items-center gap-2 text-[8px] font-black uppercase tracking-[0.2em] ${t.status === 'Concluído' ? 'text-brand-neon' : t.status === 'Em Andamento' ? 'text-orange-400' : 'text-slate-400'}`}>
+                                  <div className={`w-1.5 h-1.5 rounded-full ${t.status === 'Concluído' ? 'bg-brand-neon shadow-neon' : t.status === 'Em Andamento' ? 'bg-orange-400 shadow-lg shadow-orange-500/20' : 'bg-slate-400'}`}></div>
+                                  {t.status}
+                                </span>
+                              </td>
+                              <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-r-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-slate-500 dark:text-slate-600 font-bold text-sm">
+                                {t.prazo ? new Date(t.prazo).toLocaleDateString('pt-BR') : 'Fluxo contínuo'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-brand-surface p-6 rounded-[2.5rem]">
+                        <div className="flex items-center gap-2 bg-white dark:bg-brand-elevated p-1.5 rounded-2xl">
+                          <button onClick={() => setCalendarViewType('month')} className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${calendarViewType === 'month' ? 'bg-brand-neon text-black' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}>Mês</button>
+                          <button onClick={() => setCalendarViewType('week')} className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${calendarViewType === 'week' ? 'bg-brand-neon text-black' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}>Semana</button>
+                          <button onClick={() => setCalendarViewType('day')} className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${calendarViewType === 'day' ? 'bg-brand-neon text-black' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}>Dia</button>
+                        </div>
+                        <div className="flex items-center gap-8">
+                          <button onClick={() => navigateCalendar(-1)} className="text-slate-400 hover:text-brand-neon transition-colors"><ChevronLeft size={24} /></button>
+                          <h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight min-w-[240px] text-center uppercase">{calendarAnchorDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h4>
+                          <button onClick={() => navigateCalendar(1)} className="text-slate-400 hover:text-brand-neon transition-colors"><ChevronRightIcon size={24} /></button>
+                        </div>
+                        <button onClick={() => setCalendarAnchorDate(new Date())} className="px-8 py-3 bg-white dark:bg-brand-elevated rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-800 dark:text-white hover:bg-brand-neon hover:text-black transition-all">Hoje</button>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-brand-surface rounded-[3rem] p-10">
+                        <div className={`grid ${calendarViewType === 'day' ? 'grid-cols-1' : 'grid-cols-7'} gap-px bg-slate-200 dark:bg-white/10 rounded-2xl overflow-hidden`}>
+                          {calendarDays.map((day, i) => {
+                            const key = day.date.toISOString().split('T')[0];
+                            const dayTasks = tasksByDay[key] || [];
+                            return (
+                              <div key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, day.date)} className={`min-h-[140px] p-4 border-slate-200 dark:border-white/5 border bg-white dark:bg-[#0a0a0a] ${!day.currentPeriod ? 'opacity-20' : ''}`}>
+                                <div className="text-xs font-black text-slate-400 dark:text-slate-600 mb-2">{day.date.getDate()}</div>
+                                <div className="space-y-1">
+                                  {dayTasks.map(t => (
+                                    <div key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData("taskId", t.id.toString())} onClick={() => setSelectedTaskDetail(t)} className={`text-[8px] p-1.5 rounded bg-brand-neon/10 text-brand-neon border border-brand-neon/20 font-black cursor-pointer truncate`}>{t.titulo}</div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Modal Detalhes Tarefa - UI3.0 Refined */}
+              {selectedTaskDetail && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                  <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedTaskDetail(null)}></div>
+                  <div className="relative w-full max-w-5xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] p-12 md:p-20 max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in-up">
+                    <button onClick={() => setSelectedTaskDetail(null)} className="absolute top-12 right-12 w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all shadow-sm"><X size={28} /></button>
+
+                    <div className="flex flex-col gap-16">
+                      <div className="space-y-6">
+                        <div className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest self-start inline-block ${selectedTaskDetail.status === 'Concluído' ? 'bg-brand-neon/10 text-brand-neon' : 'bg-orange-500/10 text-orange-400'}`}>
+                          Atividade {selectedTaskDetail.status}
+                        </div>
+                        <h3 className="text-5xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-tight max-w-3xl">{selectedTaskDetail.titulo}</h3>
+                        <div className="h-1.5 w-32 bg-brand-neon rounded-full"></div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-20">
+                        <div className="lg:col-span-7 space-y-12">
+                          <div className="space-y-4">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">Briefing Operacional</label>
+                            <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium">
+                              {selectedTaskDetail.descricao || "Esta atividade compõe o fluxo de crescimento do GT e deve ser executada com foco em excelência e impacto sistêmico."}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-10">
+                            <div className="bg-slate-50/50 dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-100 dark:border-white/5">
+                              <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-4">Liderança</label>
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-white dark:bg-brand-black flex items-center justify-center border border-slate-100 dark:border-white/10 overflow-hidden">
+                                  {selectedTaskDetail.responsavel?.avatar ? <img src={selectedTaskDetail.responsavel.avatar} className="w-full h-full object-cover" /> : <UserIcon size={18} className="text-slate-300" />}
+                                </div>
+                                <p className="font-black text-slate-800 dark:text-white text-sm">{selectedTaskDetail.responsavel?.nome || 'Ecossistema'}</p>
+                              </div>
+                            </div>
+                            <div className="bg-slate-50/50 dark:bg-white/5 p-8 rounded-[2.5rem] border border-slate-100 dark:border-white/5">
+                              <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-4">Prazo Fatal</label>
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-white dark:bg-brand-black flex items-center justify-center text-brand-neon border border-slate-100 dark:border-white/10">
+                                  <Calendar size={20} />
+                                </div>
+                                <p className="font-black text-lg text-slate-800 dark:text-white text-sm">
+                                  {selectedTaskDetail.prazo ? new Date(selectedTaskDetail.prazo).toLocaleDateString('pt-BR') : 'Sem expiração'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-6">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Atualizar Estado da Tarefa</label>
+                            <div className="flex gap-4 p-2 bg-slate-100/50 dark:bg-brand-surface rounded-[2.5rem] border border-slate-200/50 dark:border-white/5">
+                              {['Pendente', 'Em Andamento', 'Concluído'].map(s => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleUpdateTaskField(selectedTaskDetail.id, 'status', s)}
+                                  className={`flex-1 py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${selectedTaskDetail.status === s ? 'bg-brand-neon text-black shadow-neon' : 'text-slate-400 hover:text-slate-800 dark:hover:text-white'}`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="lg:col-span-5 space-y-10">
+                          <label className="text-xl font-black uppercase tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                            <MessageSquare size={22} className="text-brand-neon" />
+                            Diário de Evolução
+                          </label>
+                          <div className="h-[450px] bg-slate-50/50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-[3rem] p-8 overflow-y-auto space-y-6 flex flex-col custom-scrollbar">
+                            {taskComments.map(c => (
+                              <div key={c.id} className="animate-fade-in group">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <div className="w-6 h-6 rounded-lg bg-white dark:bg-brand-elevated border border-slate-100 dark:border-white/10 flex items-center justify-center overflow-hidden">
+                                    {c.autor?.avatar ? <img src={c.autor.avatar} className="w-full h-full object-cover" /> : <UserIcon size={10} className="text-slate-400" />}
+                                  </div>
+                                  <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{c.autor?.nome}</span>
+                                </div>
+                                <div className="bg-white dark:bg-brand-elevated p-6 rounded-[2rem] rounded-tl-none text-sm text-slate-700 dark:text-slate-300 font-medium border border-slate-100 dark:border-white/5 shadow-sm group-hover:border-brand-neon/20 transition-all">
+                                  {c.conteudo}
+                                </div>
+                              </div>
+                            ))}
+                            {taskComments.length === 0 && (
+                              <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+                                <Zap size={32} className="mb-4" />
+                                <p className="text-[9px] font-black uppercase tracking-[0.3em]">Nenhum registro de progresso ainda</p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="relative group">
+                            <input
+                              type="text"
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && handlePostComment()}
+                              placeholder="Registrar log de progresso..."
+                              className="w-full bg-slate-100 dark:bg-white/5 border-none rounded-[2rem] py-6 pl-8 pr-20 text-sm focus:ring-4 focus:ring-brand-neon/10 transition-all text-slate-900 dark:text-white font-medium"
+                            />
+                            <button onClick={handlePostComment} className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-brand-neon text-black rounded-2xl flex items-center justify-center shadow-neon hover:scale-110 transition-transform">
+                              <Send size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Nova Tarefa - UI3.0 Refined */}
+              {isAddingTask && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                  <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setIsAddingTask(false)}></div>
+                  <div className="relative w-full max-w-4xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] p-12 md:p-20 shadow-2xl animate-fade-in-up">
+                    <button onClick={() => setIsAddingTask(false)} className="absolute top-12 right-12 w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all"><X size={28} /></button>
+
+                    <div className="flex items-center gap-8 mb-16">
+                      <div className="w-20 h-20 bg-brand-neon/10 rounded-[2.5rem] flex items-center justify-center text-brand-neon border border-brand-neon/20">
+                        <PlusCircle size={40} />
+                      </div>
+                      <div>
+                        <h3 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Engenharia de Ação</h3>
+                        <p className="text-slate-500 font-medium mt-1">Crie uma nova diretriz estratégica para o ecossistema.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+                      <div className="md:col-span-8 space-y-10">
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Título da Atividade</label>
+                          <input
+                            type="text"
+                            value={newTaskData.titulo}
+                            onChange={(e) => setNewTaskData({ ...newTaskData, titulo: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[2.5rem] p-8 text-xl font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-brand-neon/10 transition-all"
+                            placeholder="Ex: Refatorar fluxo de autenticação..."
+                          />
+                        </div>
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Documentação de Apoio (Opcional)</label>
+                          <textarea
+                            value={newTaskData.descricao}
+                            onChange={(e) => setNewTaskData({ ...newTaskData, descricao: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[2.5rem] p-8 text-sm font-medium text-slate-600 dark:text-slate-300 outline-none focus:ring-4 focus:ring-brand-neon/10 transition-all min-h-[150px] resize-none"
+                            placeholder="Descreva os requisitos e objetivos desta tarefa..."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-4 space-y-8">
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-4">Célula Responsável</label>
+                          <select value={newTaskData.gt_id} onChange={(e) => setNewTaskData({ ...newTaskData, gt_id: parseInt(e.target.value) })} className="w-full bg-slate-100 dark:bg-brand-elevated/50 rounded-2xl px-6 py-5 text-xs font-black text-slate-700 dark:text-white outline-none appearance-none cursor-pointer border border-transparent focus:border-brand-neon transition-all">
+                            <option value="">Selecionar GT</option>
+                            {gts.map(g => <option key={g.id} value={g.id}>{g.gt}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-4">Líder da Atividade</label>
+                          <select value={newTaskData.responsavel_id} onChange={(e) => setNewTaskData({ ...newTaskData, responsavel_id: parseInt(e.target.value) })} className="w-full bg-slate-100 dark:bg-brand-elevated/50 rounded-2xl px-6 py-5 text-xs font-black text-slate-700 dark:text-white outline-none appearance-none cursor-pointer border border-transparent focus:border-brand-neon transition-all">
+                            <option value="">Membro Responsável</option>
+                            {members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-4">Ponto de Entrega</label>
+                          <input type="date" value={newTaskData.prazo} onChange={(e) => setNewTaskData({ ...newTaskData, prazo: e.target.value })} className="w-full bg-slate-100 dark:bg-brand-elevated/50 rounded-2xl px-6 py-5 text-xs font-black text-slate-700 dark:text-white outline-none border border-transparent focus:border-brand-neon transition-all" />
+                        </div>
+
+                        <div className="pt-6">
+                          <button
+                            onClick={handleCreateTask}
+                            disabled={!newTaskData.titulo || !newTaskData.gt_id}
+                            className="w-full bg-brand-neon text-black py-8 rounded-[2.5rem] font-black shadow-neon hover:scale-105 transition-all text-[11px] uppercase tracking-[0.3em]"
+                          >
+                            Lançar Tarefa
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Gamification Tab Refined */}
+              {activeTab === 'gamification' && (
+                <div className="space-y-12">
+                  <div className="flex justify-between items-end gap-8">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                        <Trophy className="text-brand-neon" size={40} /> Patrimônio Intelectual
+                      </h2>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Visualize sua contribuição e evolução no ecossistema.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-12 hover:bg-white dark:hover:bg-brand-elevated transition-all shadow-sm group">
+                      <h3 className="text-xl font-black mb-10 flex items-center justify-between text-slate-900 dark:text-white uppercase tracking-[0.2em] opacity-60">
+                        <span>Regras de Merito</span>
+                        <Settings size={18} className="text-brand-neon group-hover:rotate-90 transition-transform duration-500" />
+                      </h3>
+                      <div className="space-y-4">
+                        {rules.map(rule => (
+                          <div key={rule.id} className="flex items-center justify-between p-6 bg-white/40 dark:bg-brand-black/20 rounded-[2rem] border border-transparent hover:border-brand-neon/20 transition-all group/rule">
+                            <span className="font-black text-slate-700 dark:text-slate-200 text-sm uppercase tracking-tight">{rule.acao}</span>
+                            <div className="flex items-center gap-4">
+                              {editingRuleId === rule.id ? (
+                                <div className="flex items-center gap-2 animate-fade-in">
+                                  <input
+                                    type="number"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    className="w-20 bg-white dark:bg-brand-elevated border border-brand-neon rounded-xl px-3 py-2 text-center font-black text-brand-neon focus:outline-none"
+                                    autoFocus
+                                  />
+                                  <button onClick={handleSaveRule} className="p-2 bg-brand-neon text-black rounded-lg shadow-neon"><Save size={16} /></button>
+                                  <button onClick={() => setEditingRuleId(null)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><X size={16} /></button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="text-2xl font-black text-brand-neon tracking-tighter">
+                                    +{rule.valor}
+                                    <span className="text-[10px] text-slate-400 uppercase tracking-widest ml-2">pts</span>
+                                  </span>
+                                  {user.governanca && (
+                                    <button onClick={() => handleEditRule(rule)} className="p-2 text-slate-300 dark:text-slate-700 hover:text-brand-neon transition-colors opacity-0 group-rule:opacity-100">
+                                      <Edit3 size={18} />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-12 hover:bg-white dark:hover:bg-brand-elevated transition-all shadow-sm">
+                      <h3 className="text-xl font-black mb-10 flex items-center justify-between text-slate-900 dark:text-white uppercase tracking-[0.2em] opacity-60">
+                        <span>Extrato de Impacto</span>
+                        <History size={18} className="text-brand-neon" />
+                      </h3>
+                      <div className="space-y-3">
+                        {logs.map(log => (
+                          <div key={log.id} className="p-6 bg-white/40 dark:bg-brand-black/20 rounded-[2rem] flex items-center justify-between border border-transparent hover:border-white/5 transition-all">
+                            <div>
+                              <p className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">{log.motivo || 'Contribuição ao Ecossistema'}</p>
+                              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-1 block tracking-widest">
+                                {new Date(log.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <span className="text-2xl font-black text-brand-green tracking-tighter">+{log.pontos_atribuidos}</span>
+                          </div>
+                        ))}
+                        {logs.length === 0 && (
+                          <div className="py-20 text-center opacity-40">
+                            <Zap size={32} className="mx-auto mb-4" />
+                            <p className="text-[10px] font-black uppercase tracking-widest">Gerando conexões e impacto...</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Gestão de Artigos Tab - UI3.0 Refined */}
+              {activeTab === 'articles_manage' && user.governanca && (
+                <div className="space-y-12">
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                        <CheckSquare className="text-brand-neon" size={40} /> Curadoria Estratégica
+                      </h2>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Valide a produção intelectual do ecossistema.</p>
+                    </div>
+                    <div className="flex gap-2 bg-slate-50 dark:bg-brand-surface p-1.5 rounded-2xl border border-slate-200 dark:border-white/5">
+                      <button
+                        onClick={() => setArticleFilter('pending')}
+                        className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${articleFilter === 'pending' ? 'bg-brand-neon text-black shadow-neon' : 'text-slate-400 dark:text-slate-600 hover:text-slate-800 dark:hover:text-white'}`}
+                      >
+                        Pendentes ({articlesInReview.length})
+                      </button>
+                      <button
+                        onClick={() => setArticleFilter('active')}
+                        className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${articleFilter === 'active' ? 'bg-brand-neon text-black shadow-neon' : 'text-slate-400 dark:text-slate-600 hover:text-slate-800 dark:hover:text-white'}`}
+                      >
+                        Ativos ({activeArticles.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-transparent overflow-hidden">
+                    <table className="w-full text-left border-separate border-spacing-y-4">
+                      <thead>
+                        <tr>
+                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Material para Revisão</th>
+                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] text-right">Ações de Curadoria</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredArticlesForManage.map(art => (
+                          <tr key={art.id} className="group">
+                            <td className="px-10 py-8 bg-slate-50/50 dark:bg-brand-surface/40 rounded-l-[3rem] group-hover:bg-white dark:group-hover:bg-brand-elevated transition-colors border border-transparent hover:border-brand-neon/10">
+                              <div className="flex items-center gap-8">
+                                <div className="w-24 h-16 bg-slate-100 dark:bg-brand-black rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5 shrink-0 group-hover:scale-105 transition-transform">
+                                  {art.capa ? <img src={art.capa} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><FileText size={20} className="text-slate-300" /></div>}
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="font-black text-slate-900 dark:text-white text-xl tracking-tight truncate group-hover:text-brand-neon transition-colors">{art.titulo}</h4>
+                                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-1 uppercase tracking-widest">Autor ID: {art.autor.substring(0, 8)} • {new Date(art.created_at).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-10 py-8 bg-slate-50/50 dark:bg-brand-surface/40 rounded-r-[3rem] group-hover:bg-white dark:group-hover:bg-brand-elevated transition-colors text-right relative overflow-hidden">
+                              <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity translate-x-4 group-hover:translate-x-0">
+                                <button
+                                  onClick={() => setSelectedArticleForReview(art)}
+                                  className="w-12 h-12 bg-white dark:bg-brand-surface rounded-2xl border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 hover:text-brand-neon hover:border-brand-neon/40 transition-all shadow-sm"
+                                >
+                                  <Eye size={20} />
+                                </button>
+                                {!art.aprovado && (
+                                  <button
+                                    onClick={() => handleApproveArticle(art.id)}
+                                    disabled={isProcessingAction}
+                                    className="px-8 bg-brand-neon text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-brand-neon/20"
+                                  >
+                                    Validar Conhecimento
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Modal de Revisão de Artigos - UI3.0 Refined */}
+                  {selectedArticleForReview && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                      <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedArticleForReview(null)}></div>
+                      <div className="relative w-full max-w-5xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] p-12 md:p-20 max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in-up flex flex-col gap-12">
+                        <button onClick={() => setSelectedArticleForReview(null)} className="absolute top-12 right-12 w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all shadow-sm"><X size={28} /></button>
+
+                        <div className="space-y-6">
+                          <div className="flex items-center gap-4">
+                            <span className="bg-brand-neon/10 text-brand-neon px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">
+                              {selectedArticleForReview.aprovado ? 'Conhecimento Validado' : 'Aguardando Curadoria'}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(selectedArticleForReview.created_at).toLocaleDateString()}</span>
+                          </div>
+                          <h1 className="text-5xl md:text-6xl font-black text-slate-900 dark:text-white leading-tight uppercase tracking-tighter">{selectedArticleForReview.titulo}</h1>
+                          <p className="text-xl text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-3xl">{selectedArticleForReview.subtitulo}</p>
+                        </div>
+
+                        {selectedArticleForReview.capa && (
+                          <div className="w-full h-[450px] rounded-[3.5rem] overflow-hidden border border-slate-100 dark:border-white/5 shadow-xl">
+                            <img src={selectedArticleForReview.capa} className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700" />
+                          </div>
+                        )}
+
+                        <div className="prose dark:prose-invert prose-lg max-w-none">
+                          <div className="text-slate-600 dark:text-slate-300 font-medium leading-[1.8] tracking-tight" dangerouslySetInnerHTML={{ __html: selectedArticleForReview.conteudo }} />
+                        </div>
+
+                        {!selectedArticleForReview.aprovado && (
+                          <div className="sticky bottom-0 mt-10 pt-10 border-t border-slate-100 dark:border-white/5 bg-gradient-to-t from-white dark:from-brand-surface to-transparent pb-10">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4 text-slate-400">
+                                <Info size={18} />
+                                <p className="text-[10px] font-black uppercase tracking-widest">Ao validar, este material será propagado para todo o ecossistema.</p>
+                              </div>
+                              <button
+                                onClick={() => handleApproveArticle(selectedArticleForReview.id)}
+                                disabled={isProcessingAction}
+                                className="bg-brand-neon text-black px-12 py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all flex items-center gap-4 text-xs uppercase tracking-widest"
+                              >
+                                <CheckCircle size={20} /> Validar Agora
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Gestão GTs - UI3.0 Refined */}
               {activeTab === 'gts_manage' && user.governanca && (
                 <div className="space-y-12">
-                   <div className="flex justify-between items-center"><h2 className="text-4xl font-black flex items-center gap-4 text-slate-900 dark:text-white"><Boxes className="text-brand-neon" size={40} /> Gestão de GTs</h2><button onClick={() => setIsAddingGt(true)} className="bg-brand-neon text-black px-6 py-3 rounded-xl font-black shadow-lg">NOVO GT</button></div>
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {gts.map(gt => (
-                        <div key={gt.id} onClick={() => { setSelectedGtForManagement(gt); setGtMemberSearchTerm(''); }} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-10 hover:border-brand-neon cursor-pointer transition-all shadow-sm dark:shadow-none">
-                           <div className="w-12 h-12 bg-brand-neon/10 rounded-xl flex items-center justify-center text-brand-neon mb-6"><Boxes size={24} /></div>
-                           <h3 className="text-2xl font-black text-slate-900 dark:text-white">{gt.gt}</h3>
-                           <p className="text-slate-500 dark:text-slate-500 text-sm mt-2">Clique para gerenciar membros.</p>
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                        <Boxes className="text-brand-neon" size={40} /> Unidades de Atuação
+                      </h2>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Gerencie os Grupos de Trabalho e a força motriz do ecossistema.</p>
+                    </div>
+                    <button onClick={() => setIsAddingGt(true)} className="bg-brand-neon text-black px-10 py-4 rounded-2xl font-black shadow-lg shadow-brand-neon/20 hover:scale-105 transition-all uppercase tracking-widest text-[10px]">
+                      Novo GT
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {gts.map(gt => (
+                      <div key={gt.id} onClick={() => { setSelectedGtForManagement(gt); setGtMemberSearchTerm(''); }} className="group bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-10 hover:bg-white dark:hover:bg-brand-elevated transition-all duration-500 cursor-pointer border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-neon/5 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+                        <div className="w-16 h-16 bg-white dark:bg-brand-black rounded-2xl flex items-center justify-center text-brand-neon mb-8 border border-slate-200 dark:border-white/10 group-hover:border-brand-neon transition-colors">
+                          <Boxes size={32} />
                         </div>
-                      ))}
-                   </div>
 
-                   {/* Modal Novo GT */}
-                   {isAddingGt && (
-                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
-                        <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl" onClick={() => setIsAddingGt(false)}></div>
-                        <div className="relative w-full max-w-md bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 shadow-2xl">
-                           <button onClick={() => setIsAddingGt(false)} className="absolute top-8 right-8 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={32} /></button>
-                           <h3 className="text-3xl font-black mb-10 text-slate-900 dark:text-white">Novo GT</h3>
-                           <div className="space-y-6">
-                              <div className="space-y-2">
-                                 <label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">Nome do Grupo de Trabalho</label>
-                                 <input type="text" value={newGtName} onChange={(e) => setNewGtName(e.target.value)} className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-slate-900 dark:text-white outline-none focus:border-brand-neon" placeholder="Ex: GT de Inteligência Artificial" />
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-brand-neon transition-colors">{gt.gt}</h3>
+                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] mt-2">Grupo de Trabalho Oficial</p>
+
+                        <div className="mt-10 pt-6 border-t border-slate-200 dark:border-white/5 flex items-center justify-between">
+                          <div className="flex -space-x-2">
+                            {members.filter(m => m.gts?.includes(gt.id)).slice(0, 3).map((m, i) => (
+                              <div key={i} className="w-8 h-8 rounded-full border-2 border-white dark:border-brand-surface bg-slate-200 overflow-hidden">
+                                {m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <UserIcon size={14} className="m-auto mt-2 text-slate-400" />}
                               </div>
-                              <button onClick={handleCreateGt} disabled={!newGtName.trim()} className="w-full bg-brand-neon text-black py-5 rounded-2xl font-black shadow-xl hover:opacity-90 transition-all">CRIAR GRUPO</button>
-                           </div>
+                            ))}
+                            <span className="pl-4 text-[9px] font-bold text-slate-400 self-center uppercase">Gestão de Impacto</span>
+                          </div>
+                          <ArrowRight size={18} className="text-brand-neon translate-x-4 group-hover:translate-x-0 transition-all opacity-0 group-hover:opacity-100" />
                         </div>
-                     </div>
-                   )}
+                      </div>
+                    ))}
+                  </div>
 
-                   {/* Modal Gerenciar GT Específico */}
-                   {selectedGtForManagement && (
-                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-10">
-                        <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl" onClick={() => setSelectedGtForManagement(null)}></div>
-                        <div className="relative w-full max-w-4xl bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-[3rem] p-12 max-h-[90vh] overflow-y-auto shadow-2xl">
-                           <button onClick={() => setSelectedGtForManagement(null)} className="absolute top-8 right-8 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={32} /></button>
-                           <div className="flex items-center gap-6 mb-12">
-                              <div className="w-20 h-20 bg-brand-neon/10 rounded-3xl flex items-center justify-center text-brand-neon border border-brand-neon/20"><Boxes size={40} /></div>
-                              <div>
-                                 <h3 className="text-4xl font-black text-slate-900 dark:text-white">{selectedGtForManagement.gt}</h3>
-                                 <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Gerenciamento de Membros e Projetos</p>
-                              </div>
-                           </div>
+                  {/* Modal Novo GT - UI3.0 Borderless */}
+                  {isAddingGt && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                      <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setIsAddingGt(false)}></div>
+                      <div className="relative w-full max-w-xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4rem] p-12 md:p-16 shadow-[0_50px_100px_rgba(0,0,0,0.1)] animate-fade-in-up">
+                        <button onClick={() => setIsAddingGt(false)} className="absolute top-10 right-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all"><X size={24} /></button>
 
-                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                              <div className="space-y-8">
-                                 <h4 className="text-xl font-black flex items-center gap-3 text-slate-900 dark:text-white"><Users2 className="text-brand-neon" /> Membros Ativos</h4>
-                                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
-                                    {members.filter(m => m.gts?.includes(selectedGtForManagement.id)).map(member => (
-                                       <div key={member.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/5 group shadow-sm dark:shadow-none">
-                                          <div className="flex items-center gap-4">
-                                             <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-black border border-slate-300 dark:border-white/10 overflow-hidden">
-                                                {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={16} className="m-auto mt-3 text-slate-400 dark:text-slate-600" />}
-                                             </div>
-                                             <span className="font-bold text-sm text-slate-900 dark:text-white">{member.nome}</span>
-                                          </div>
-                                          <button onClick={() => handleRemoveMemberFromGt(member)} className="p-2 text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><UserMinus size={18} /></button>
-                                       </div>
-                                    ))}
-                                    {members.filter(m => m.gts?.includes(selectedGtForManagement.id)).length === 0 && (
-                                       <p className="text-slate-400 dark:text-slate-600 italic text-sm py-10 text-center">Nenhum membro vinculado a este GT.</p>
-                                    )}
-                                 </div>
-                              </div>
+                        <div className="w-20 h-20 bg-brand-neon/10 rounded-[2rem] flex items-center justify-center text-brand-neon border border-brand-neon/20 mb-10">
+                          <Boxes size={40} />
+                        </div>
 
-                              <div className="space-y-8">
-                                 <h4 className="text-xl font-black flex items-center gap-3 text-slate-900 dark:text-white"><PlusCircle className="text-brand-neon" /> Adicionar Membro</h4>
-                                 <div className="space-y-6">
-                                    <div className="relative group">
-                                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                       <input 
-                                          type="text" 
-                                          placeholder="Buscar membro por nome ou e-mail..." 
-                                          value={gtMemberSearchTerm}
-                                          onChange={(e) => setGtMemberSearchTerm(e.target.value)}
-                                          className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-brand-neon transition-all text-slate-900 dark:text-white"
-                                       />
+                        <h3 className="text-4xl font-black mb-4 text-slate-900 dark:text-white uppercase tracking-tighter">Novo Grupo de Trabalho</h3>
+                        <p className="text-slate-500 mb-12 font-medium">Defina uma nova unidade de atuação para impulsionar o ecossistema.</p>
+
+                        <div className="space-y-10">
+                          <div className="space-y-4">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Nome do GT</label>
+                            <input
+                              type="text"
+                              value={newGtName}
+                              onChange={(e) => setNewGtName(e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-brand-elevated border-none rounded-[2rem] p-8 text-xl font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-brand-neon/10 transition-all"
+                              placeholder="Fomentando a Inovação..."
+                            />
+                          </div>
+
+                          <div className="flex gap-4 pt-6">
+                            <button onClick={() => setIsAddingGt(false)} className="flex-1 py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Cancelar</button>
+                            <button
+                              onClick={handleCreateGt}
+                              disabled={!newGtName.trim()}
+                              className="flex-[2] bg-brand-neon text-black py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all text-[10px] uppercase tracking-widest"
+                            >
+                              Fundar GT
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Modal Gerenciar GT Específico - UI3.0 Refined */}
+                  {selectedGtForManagement && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                      <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedGtForManagement(null)}></div>
+                      <div className="relative w-full max-w-6xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] p-12 md:p-20 max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in-up">
+                        <button onClick={() => setSelectedGtForManagement(null)} className="absolute top-12 right-12 w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all"><X size={28} /></button>
+
+                        <div className="flex flex-col md:flex-row md:items-center gap-10 mb-20">
+                          <div className="w-24 h-24 bg-brand-neon text-black rounded-[2.5rem] flex items-center justify-center shadow-neon border-4 border-white dark:border-brand-surface"><Boxes size={48} /></div>
+                          <div>
+                            <h3 className="text-5xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{selectedGtForManagement.gt}</h3>
+                            <div className="flex items-center gap-4 mt-3">
+                              <span className="text-brand-neon font-black text-[10px] uppercase tracking-[0.3em]">Gestão Operacional</span>
+                              <div className="w-1.5 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full"></div>
+                              <span className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em]">{members.filter(m => m.gts?.includes(selectedGtForManagement.id)).length} Agentes Ativos</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
+                          <div className="space-y-12">
+                            <h4 className="text-xl font-black flex items-center gap-4 text-slate-900 dark:text-white uppercase tracking-tight">
+                              <div className="w-2 h-8 bg-brand-neon rounded-full"></div>
+                              Membros da Célula
+                            </h4>
+                            <div className="space-y-3 pr-4 custom-scrollbar">
+                              {members.filter(m => m.gts?.includes(selectedGtForManagement.id)).map(member => (
+                                <div key={member.id} className="flex items-center justify-between p-6 bg-slate-50/50 dark:bg-white/5 rounded-[2.5rem] border border-transparent hover:border-brand-neon/10 transition-all group">
+                                  <div className="flex items-center gap-5">
+                                    <div className="w-14 h-14 rounded-2xl bg-white dark:bg-brand-black border border-slate-100 dark:border-white/10 overflow-hidden group-hover:scale-105 transition-transform">
+                                      {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="m-auto mt-4 text-slate-300" />}
                                     </div>
-                                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-4 custom-scrollbar">
-                                       {potentialGtMembers.map(member => (
-                                          <button key={member.id} onClick={() => handleAddMemberToGt(member)} className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-2xl hover:border-brand-neon/50 hover:bg-brand-neon/5 transition-all text-left group shadow-sm dark:shadow-none">
-                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-black border border-slate-300 dark:border-white/10 overflow-hidden">
-                                                   {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={16} className="m-auto mt-3 text-slate-400 dark:text-slate-600" />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                   <span className="font-bold text-sm text-slate-900 dark:text-white block truncate">{member.nome}</span>
-                                                   <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{member.email}</span>
-                                                </div>
-                                             </div>
-                                             <ArrowRight size={16} className="text-brand-neon group-hover:translate-x-1 transition-transform flex-shrink-0" />
-                                          </button>
-                                       ))}
-                                       {potentialGtMembers.length === 0 && members.length > 0 && (
-                                          <p className="text-slate-400 dark:text-slate-600 italic text-sm py-10 text-center">Nenhum membro encontrado.</p>
-                                       )}
+                                    <div>
+                                      <span className="font-black text-slate-900 dark:text-white block tracking-tight">{member.nome}</span>
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{member.email}</span>
                                     </div>
-                                 </div>
+                                  </div>
+                                  <button onClick={() => handleRemoveMemberFromGt(member)} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"><UserMinus size={20} /></button>
+                                </div>
+                              ))}
+                              {members.filter(m => m.gts?.includes(selectedGtForManagement.id)).length === 0 && (
+                                <div className="py-20 text-center border-2 border-dashed border-slate-100 dark:border-white/5 rounded-[3rem]">
+                                  <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Aguardando novos agentes...</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-12">
+                            <h4 className="text-xl font-black flex items-center gap-4 text-slate-900 dark:text-white uppercase tracking-tight">
+                              <div className="w-2 h-8 bg-brand-neon rounded-full opacity-50"></div>
+                              Integrar Nova Mente
+                            </h4>
+                            <div className="space-y-8">
+                              <div className="relative group">
+                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-brand-neon transition-colors" size={20} />
+                                <input
+                                  type="text"
+                                  placeholder="Convocar por nome ou e-mail..."
+                                  value={gtMemberSearchTerm}
+                                  onChange={(e) => setGtMemberSearchTerm(e.target.value)}
+                                  className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[2rem] py-6 pl-16 pr-8 text-sm focus:ring-4 focus:ring-brand-neon/10 transition-all text-slate-900 dark:text-white font-medium"
+                                />
                               </div>
-                           </div>
+                              <div className="space-y-3 max-h-[450px] overflow-y-auto pr-4 custom-scrollbar">
+                                {potentialGtMembers.map(member => (
+                                  <div key={member.id} onClick={() => handleAddMemberToGt(member)} className="w-full flex items-center justify-between p-6 bg-slate-50 dark:bg-white/5 rounded-[2.5rem] border-2 border-transparent hover:border-brand-neon hover:bg-white dark:hover:bg-brand-elevated transition-all cursor-pointer group">
+                                    <div className="flex items-center gap-5">
+                                      <div className="w-14 h-14 rounded-2xl bg-white dark:bg-brand-black border border-slate-100 dark:border-white/10 overflow-hidden group-hover:scale-110 transition-transform">
+                                        {member.avatar ? <img src={member.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="m-auto mt-4 text-slate-300" />}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <span className="font-black text-slate-900 dark:text-white block truncate tracking-tight">{member.nome}</span>
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-600 font-bold uppercase tracking-widest block truncate">{member.email}</span>
+                                      </div>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-xl bg-brand-neon/10 text-brand-neon flex items-center justify-center group-hover:scale-110 transition-transform">
+                                      <PlusCircle size={20} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                     </div>
-                   )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Check-in Tab */}
+              {/* Check-in Tab - UI3.0 Refined */}
               {activeTab === 'checkin' && user.governanca && (
                 <div className="space-y-12">
-                   <div className="flex justify-between items-end gap-8">
-                      <div>
-                        <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
-                          <ScanLine className="text-brand-neon" size={40} /> Controle de Check-in
-                        </h2>
-                        <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Valide a presença dos membros nos eventos oficiais.</p>
-                      </div>
-                   </div>
+                  <div>
+                    <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                      <ScanLine className="text-brand-neon" size={40} /> Validação de Presença
+                    </h2>
+                    <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Controle de fluxo e impacto presencial do ecossistema.</p>
+                  </div>
 
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                      <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-12 flex flex-col items-center justify-center min-h-[500px] shadow-sm dark:shadow-none">
-                         {!isScanning ? (
-                           <div className="text-center space-y-8 animate-fade-in-up">
-                              <div className="w-24 h-24 bg-brand-neon/10 rounded-3xl flex items-center justify-center text-brand-neon mx-auto mb-6">
-                                 <QrIcon size={48} />
-                              </div>
-                              <h3 className="text-2xl font-black text-slate-900 dark:text-white">Pronto para escanear?</h3>
-                              <p className="text-slate-500 dark:text-slate-500 max-w-xs mx-auto">Posicione o QR Code do ingresso do membro em frente à câmera para validar a entrada.</p>
-                              <button 
-                                onClick={startScanner}
-                                className="bg-brand-neon text-black px-12 py-5 rounded-2xl font-black shadow-[0_20px_40px_rgba(0,255,157,0.2)] hover:scale-105 transition-all flex items-center gap-3 mx-auto"
-                              >
-                                <CameraIcon size={24} /> INICIAR CÂMERA
-                              </button>
-                           </div>
-                         ) : (
-                           <div className="w-full space-y-6 animate-fade-in-up">
-                              <div id="reader" className="overflow-hidden rounded-[2rem] border-2 border-brand-neon/30 bg-white dark:bg-black aspect-square max-w-sm mx-auto shadow-2xl"></div>
-                              <button 
-                                onClick={stopScanner}
-                                className="w-full max-w-sm mx-auto bg-red-500/10 text-red-500 border border-red-500/20 py-4 rounded-xl font-black hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
-                              >
-                                <X size={20} /> PARAR SCANNER
-                              </button>
-                           </div>
-                         )}
-                      </div>
-
-                      <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] p-12 shadow-sm dark:shadow-none">
-                         <h3 className="text-2xl font-black mb-8 flex items-center gap-4 text-slate-900 dark:text-white">
-                           <History size={24} className="text-brand-neon" /> Check-ins Recentes
-                         </h3>
-                         <div className="space-y-4">
-                            <div className="py-20 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[2rem]">
-                               <CheckCircle size={32} className="mx-auto text-slate-300 dark:text-slate-700 mb-4" />
-                               <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest">Os check-ins validados aparecerão aqui em tempo real.</p>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-12 md:p-20 flex flex-col items-center justify-center min-h-[600px] transition-all hover:bg-white dark:hover:bg-brand-elevated border border-transparent hover:border-brand-neon/10">
+                      {!isScanning ? (
+                        <div className="text-center space-y-12 animate-fade-in-up">
+                          <div className="relative">
+                            <div className="w-32 h-32 bg-brand-neon text-black rounded-[3rem] flex items-center justify-center mx-auto mb-8 shadow-neon relative z-10">
+                              <ScanLine size={56} />
                             </div>
-                         </div>
+                            <div className="absolute inset-0 bg-brand-neon blur-3xl opacity-20 scale-150 rounded-full"></div>
+                          </div>
+                          <div className="space-y-4">
+                            <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Scanner de Impacto</h3>
+                            <p className="text-slate-500 max-w-xs mx-auto font-medium leading-relaxed block">Posicione o ticket QR para validar a presença e atribuir pontuação de mérito instantaneamente.</p>
+                          </div>
+                          <button
+                            onClick={startScanner}
+                            className="group bg-brand-neon text-black px-14 py-7 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all flex items-center gap-4 mx-auto tracking-[0.2em] text-[10px] uppercase"
+                          >
+                            <CameraIcon size={24} className="group-hover:rotate-12 transition-transform" /> Iniciar Protocolo
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-full space-y-12 animate-fade-in">
+                          <div className="relative group">
+                            <div id="reader" className="overflow-hidden rounded-[4rem] border-8 border-brand-neon/20 shadow-neon bg-black aspect-square max-w-sm mx-auto relative z-10"></div>
+                            <div className="absolute inset-0 bg-brand-neon/5 blur-[100px] rounded-full"></div>
+                            {/* Scanner Viewfinder Elements */}
+                            <div className="absolute top-10 left-10 w-12 h-12 border-t-4 border-l-4 border-brand-neon z-20 rounded-tl-2xl"></div>
+                            <div className="absolute top-10 right-10 w-12 h-12 border-t-4 border-r-4 border-brand-neon z-20 rounded-tr-2xl"></div>
+                            <div className="absolute bottom-10 left-10 w-12 h-12 border-b-4 border-l-4 border-brand-neon z-20 rounded-bl-2xl"></div>
+                            <div className="absolute bottom-10 right-10 w-12 h-12 border-b-4 border-r-4 border-brand-neon z-20 rounded-br-2xl"></div>
+                            <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-brand-neon/40 animate-scan z-20"></div>
+                          </div>
+                          <button
+                            onClick={stopScanner}
+                            className="w-full max-w-sm mx-auto bg-slate-100 dark:bg-white/5 text-slate-400 p-7 rounded-[2rem] font-black hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-4 uppercase text-[10px] tracking-[0.3em]"
+                          >
+                            <X size={20} /> Encerrar Scanner
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-12 hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-white/5 flex flex-col">
+                      <h3 className="text-xl font-black mb-10 flex items-center justify-between text-slate-900 dark:text-white uppercase tracking-[0.2em] opacity-60">
+                        <span>Fluxo de Validação</span>
+                        <History size={18} className="text-brand-neon" />
+                      </h3>
+                      <div className="flex-1 space-y-6">
+                        {/* Placeholder for real-time history or actual logs */}
+                        <div className="py-24 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[3.5rem] bg-white/30 dark:bg-black/10 h-full flex flex-col items-center justify-center group">
+                          <div className="w-20 h-20 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
+                            <CheckCircle size={40} className="text-slate-300 dark:text-slate-700 opacity-40" />
+                          </div>
+                          <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] max-w-[240px] mx-auto leading-relaxed">Aguardando sinais do ecossistema para validação...</p>
+                        </div>
                       </div>
-                   </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Ranking Tab */}
+              {/* Ranking Tab - UI3.0 Borderless */}
               {activeTab === 'ranking' && (
-                <div className="space-y-8">
-                  <h2 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">Ranking do Ecossistema</h2>
-                  <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[3rem] overflow-hidden shadow-sm dark:shadow-none">
-                    <table className="w-full text-left">
-                      <thead className="bg-slate-100 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
-                        <tr><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Posição</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Membro</th><th className="px-10 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right">Impacto (Pts)</th></tr>
+                <div className="space-y-12">
+                  <div className="flex justify-between items-end gap-8">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                        <Trophy className="text-brand-neon" size={40} /> Ranking de Impacto
+                      </h2>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Os líderes da transformação no ecossistema.</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-transparent overflow-hidden">
+                    <table className="w-full text-left border-separate border-spacing-y-3">
+                      <thead>
+                        <tr>
+                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Posição</th>
+                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Perfil do Membro</th>
+                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] text-right">Potencial Acumulado</th>
+                        </tr>
                       </thead>
                       <tbody>
                         {ranking.map((u, i) => (
-                          <tr key={u.id} className="border-b border-slate-200 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                            <td className="px-10 py-8"><span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${i === 0 ? 'bg-brand-neon text-black' : 'text-slate-400 dark:text-slate-500'}`}>{i + 1}</span></td>
-                            <td className="px-10 py-8"><div className="flex items-center gap-5"><div className="w-12 h-12 rounded-xl bg-white dark:bg-white/5 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10">{u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : <Users size={20} className="text-slate-400 dark:text-slate-600" />}</div><span className="font-black text-slate-900 dark:text-white">{u.nome}</span></div></td>
-                            <td className="px-10 py-8 text-right font-mono font-black text-brand-neon text-2xl">{u.pontos}</td>
+                          <tr key={u.id} className="group transition-all duration-300">
+                            <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-l-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-center">
+                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl mx-auto ${i === 0 ? 'bg-brand-neon text-black shadow-neon scale-110' : i === 1 ? 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300' : i === 2 ? 'bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400' : 'text-slate-400 dark:text-slate-700'}`}>
+                                {i + 1}
+                              </div>
+                            </td>
+                            <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors">
+                              <div className="flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-2xl bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:border-brand-neon/30 transition-colors">
+                                  {u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : <UserIcon size={24} className="text-slate-300 dark:text-slate-800" />}
+                                </div>
+                                <div>
+                                  <p className="font-black text-slate-800 dark:text-slate-100 text-lg tracking-tight">{u.nome}</p>
+                                  <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mt-1">Hélice da Inovação</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-r-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-right">
+                              <span className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white group-hover:text-brand-neon transition-colors">
+                                {u.pontos}
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">pts</span>
+                              </span>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1275,19 +1963,69 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 </div>
               )}
 
-              {/* Membros Tab */}
+              {/* Members Tab - UI3.0 Refined */}
               {activeTab === 'members' && (
-                <div className="space-y-8">
-                  <h2 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">Comunidade INOVAP</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {members.map(m => (
-                      <div key={m.id} className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-8 flex items-center gap-6 group hover:border-brand-neon transition-all shadow-sm dark:shadow-none">
-                        <div className="w-20 h-20 rounded-2xl bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden">
-                          {m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <Users size={32} className="text-slate-300 dark:text-slate-800" />}
+                <div className="space-y-12">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+                    <div>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                        <Users size={40} className="text-brand-neon" /> Comunidade INOVAP
+                      </h2>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Conecte-se com as mentes brilhantes do nosso ecossistema.</p>
+                    </div>
+
+                    <div className="relative w-full md:w-80 group">
+                      <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-brand-neon transition-colors" size={18} />
+                      <input
+                        type="text"
+                        placeholder="Buscar membro..."
+                        value={memberSearchTerm}
+                        onChange={(e) => setMemberSearchTerm(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-brand-surface/50 border border-slate-200 dark:border-white/5 rounded-2xl py-4 pl-14 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-brand-neon/30 focus:bg-white dark:focus:bg-brand-elevated transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredMembers.map(m => (
+                      <div key={m.id} className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-8 flex items-center gap-6 group hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden">
+                        {/* Decorative Background Element */}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-neon/5 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+
+                        <div className="relative">
+                          <div className="w-20 h-20 rounded-[2rem] bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-500 ring-0 group-hover:ring-4 ring-brand-neon/10">
+                            {m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <Users size={32} className="text-slate-300 dark:text-slate-800" />}
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-neon rounded-full border-4 border-white dark:border-brand-surface flex items-center justify-center">
+                            <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
+                          </div>
                         </div>
-                        <div className="flex-1"><h4 className="font-black text-slate-900 dark:text-white text-xl">{m.nome}</h4><p className="text-xs text-slate-400 dark:text-slate-500 uppercase font-bold mt-1">{m.email}</p></div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-black text-slate-900 dark:text-white text-xl tracking-tight truncate">{m.nome}</h4>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-600 font-bold mt-1 truncate lowercase">{m.email}</p>
+
+                          <div className="mt-4 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+                            <div className="px-3 py-1 bg-brand-neon/10 rounded-full text-[9px] font-black text-brand-neon uppercase tracking-tighter">
+                              {m.pontos || 0} Inovapoints
+                            </div>
+                            <button className="text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1">
+                              Perfil <ChevronRight size={12} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     ))}
+
+                    {filteredMembers.length === 0 && (
+                      <div className="col-span-full py-20 text-center animate-fade-in">
+                        <div className="w-20 h-20 bg-slate-50 dark:bg-brand-surface rounded-full flex items-center justify-center mx-auto mb-6">
+                          <Users size={32} className="text-slate-300 dark:text-slate-700" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-400 dark:text-slate-600">Nenhum membro encontrado...</h3>
+                        <p className="text-sm text-slate-500 mt-2">Tente ajustar os termos da sua busca.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
