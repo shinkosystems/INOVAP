@@ -39,6 +39,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => (localStorage.getItem('theme') as 'dark' | 'light') || 'dark');
 
+  // Redirecionamento de abas restritas
+  useEffect(() => {
+    if (!user) return;
+    const hasAccess = user.governanca || (user.gts && user.gts.length > 0);
+    if (!hasAccess && (activeTab === 'tasks' || activeTab === 'articles')) {
+      setActiveTab('overview');
+    }
+  }, [user, activeTab]);
+
   // Data States
   const [ranking, setRanking] = useState<User[]>([]);
   const [members, setMembers] = useState<User[]>([]);
@@ -531,21 +540,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'ranking', label: 'Ranking', icon: Star },
             { id: 'members', label: 'Membros', icon: Users },
-            { id: 'tasks', label: 'Tarefas', icon: ListTodo },
+            { id: 'tasks', label: 'Tarefas', icon: ListTodo, restricted: true },
             { id: 'agenda', label: 'Agenda', icon: CalendarRange },
-            { id: 'articles', label: 'Meus Artigos', icon: FileText },
+            { id: 'articles', label: 'Meus Artigos', icon: FileText, restricted: true },
             { id: 'my_events', label: 'Ingressos', icon: Ticket }
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as Tab)}
-              className={`w-full flex items-center gap-4 px-3.5 py-3.5 rounded-2xl font-bold transition-all relative ${activeTab === item.id ? 'bg-brand-neon/20 text-brand-green dark:text-brand-neon shadow-sm shadow-brand-neon/10' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.03] hover:text-slate-900 dark:hover:text-white'}`}
-            >
-              <item.icon size={22} className="shrink-0" />
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm">{item.label}</span>
-              {activeTab === item.id && <div className="absolute left-0 w-1 h-6 bg-brand-neon rounded-full" />}
-            </button>
-          ))}
+          ]
+            .filter(item => {
+              if (item.restricted) {
+                return user.governanca || (user.gts && user.gts.length > 0);
+              }
+              return true;
+            })
+            .map(item => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as Tab)}
+                className={`w-full flex items-center gap-4 px-3.5 py-3.5 rounded-2xl font-bold transition-all relative ${activeTab === item.id ? 'bg-brand-neon/20 text-brand-green dark:text-brand-neon shadow-sm shadow-brand-neon/10' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.03] hover:text-slate-900 dark:hover:text-white'}`}
+              >
+                <item.icon size={22} className="shrink-0" />
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm">{item.label}</span>
+                {activeTab === item.id && <div className="absolute left-0 w-1 h-6 bg-brand-neon rounded-full" />}
+              </button>
+            ))}
 
           {user.governanca && (
             <>
