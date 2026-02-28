@@ -104,6 +104,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const editorRef = useRef<HTMLDivElement>(null);
   const contentImageInputRef = useRef<HTMLInputElement>(null);
   const articleCoverInputRef = useRef<HTMLInputElement>(null);
+  const eventCoverInputRef = useRef<HTMLInputElement>(null);
 
   // Ticket States
   const [selectedTicketForQr, setSelectedTicketForQr] = useState<Inscricao | null>(null);
@@ -366,6 +367,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     if (data) {
       const { data: { publicUrl } } = supabase.storage.from('imagensBlog').getPublicUrl(data.path);
       setNewArticleData({ ...newArticleData, capa: publicUrl });
+    }
+  };
+
+  const handleEventCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessingAction(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `event_${Date.now()}.${fileExt}`;
+      const { data, error } = await supabase.storage
+        .from('imagensBlog')
+        .upload(`eventos/${fileName}`, file);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('imagensBlog')
+        .getPublicUrl(`eventos/${fileName}`);
+
+      setNewEventData(prev => ({ ...prev, imagem_capa: publicUrl }));
+      showNotification('success', 'Imagem do evento carregada!');
+    } catch (e) {
+      console.error(e);
+      showNotification('error', 'Erro ao subir imagem do evento.');
+    } finally {
+      setIsProcessingAction(false);
     }
   };
 
@@ -1057,13 +1085,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                 </select>
                               </div>
                               <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Link da Imagem (Capa)</label>
-                                <input
-                                  className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/5 rounded-3xl px-8 py-4 focus:outline-none focus:ring-2 focus:ring-brand-neon/50 transition-all font-bold text-slate-800 dark:text-white"
-                                  placeholder="URL da imagem..."
-                                  value={newEventData.imagem_capa}
-                                  onChange={(e) => setNewEventData({ ...newEventData, imagem_capa: e.target.value })}
-                                />
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Imagem de Capa</label>
+                                <div
+                                  onClick={() => eventCoverInputRef.current?.click()}
+                                  className="group relative h-48 bg-slate-50 dark:bg-black/40 border-2 border-dashed border-slate-100 dark:border-white/5 rounded-3xl overflow-hidden cursor-pointer hover:border-brand-neon transition-all flex flex-col items-center justify-center p-4 text-center"
+                                >
+                                  {newEventData.imagem_capa ? (
+                                    <>
+                                      <img src={newEventData.imagem_capa} className="absolute inset-0 w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest">
+                                        Alterar Imagem
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="w-12 h-12 bg-white dark:bg-brand-elevated rounded-2xl flex items-center justify-center mb-3 group-hover:text-brand-neon transition-colors">
+                                        <CameraIcon size={24} />
+                                      </div>
+                                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-200 transition-colors">Clique para subir capa do evento</p>
+                                    </>
+                                  )}
+                                  <input
+                                    type="file"
+                                    ref={eventCoverInputRef}
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={handleEventCoverUpload}
+                                  />
+                                  {isProcessingAction && (
+                                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                                      <Loader2 className="animate-spin text-brand-neon" size={24} />
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4">Propósito (Descrição)</label>
