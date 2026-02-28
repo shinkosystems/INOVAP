@@ -13,11 +13,15 @@ export const Footer: React.FC = () => {
               Transformando o Alto Paraopeba em referência mundial de inovação com transparência e conexão.
             </p>
             <div className="flex gap-4">
-              {[Instagram, Linkedin, Facebook].map((Icon, i) => (
-                <a key={i} href="#" className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-neon hover:text-black transition-all duration-300">
-                  <Icon size={20} />
-                </a>
-              ))}
+              <a href="https://instagram.com/ecossistemainovap" target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-neon hover:text-black transition-all duration-300">
+                <Instagram size={20} />
+              </a>
+              <a href="#" className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-neon hover:text-black transition-all duration-300">
+                <Linkedin size={20} />
+              </a>
+              <a href="#" className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-neon hover:text-black transition-all duration-300">
+                <Facebook size={20} />
+              </a>
             </div>
           </div>
 
@@ -36,6 +40,10 @@ export const Footer: React.FC = () => {
               <li className="flex items-start gap-4">
                 <div className="p-2 bg-white/5 rounded-lg text-brand-green"><MapPin size={18} /></div>
                 <span>Alto Paraopeba - MG</span>
+              </li>
+              <li className="flex items-center gap-4">
+                <div className="p-2 bg-white/5 rounded-lg text-brand-green"><Instagram size={18} /></div>
+                <a href="https://instagram.com/ecossistemainovap" target="_blank" rel="noopener noreferrer" className="hover:text-brand-neon transition-colors">@ecossistemainovap</a>
               </li>
               <li className="flex items-center gap-4">
                 <div className="p-2 bg-white/5 rounded-lg text-brand-green"><Mail size={18} /></div>
@@ -61,7 +69,9 @@ export const Footer: React.FC = () => {
 
         <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-slate-600">
           <p>&copy; {new Date().getFullYear()} INOVAP. Todos os direitos reservados.</p>
-          <p className="mt-2 md:mt-0 opacity-50">Design System v26.0</p>
+          <p className="mt-2 md:mt-0">
+            Desenvolvido por <a href="https://wa.me/5531996810896" target="_blank" rel="noopener noreferrer" className="hover:text-brand-neon transition-colors font-bold">Shinkō Systems</a>
+          </p>
         </div>
       </div>
     </footer>
