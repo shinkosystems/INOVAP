@@ -61,6 +61,7 @@ export interface Empresa {
   cor_primaria?: string;
   feedbacks?: Feedback[];
   numero_projetos?: number;
+  impacto_gerado?: string;
 }
 
 export interface PontuacaoRegra {
