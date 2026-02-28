@@ -1,6 +1,6 @@
 import React from 'react';
 import { Logo } from '../ui/Logo';
-import { Mail, MapPin, Phone, Instagram, Linkedin, Facebook } from 'lucide-react';
+import { Mail, MapPin, Instagram, Linkedin, Facebook } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
@@ -15,7 +15,7 @@ export const Footer: React.FC = () => {
             <div className="flex gap-4">
               {[Instagram, Linkedin, Facebook].map((Icon, i) => (
                 <a key={i} href="#" className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-neon hover:text-black transition-all duration-300">
-                    <Icon size={20} />
+                  <Icon size={20} />
                 </a>
               ))}
             </div>
@@ -25,7 +25,7 @@ export const Footer: React.FC = () => {
             <h4 className="text-white font-bold mb-8 text-lg">Navegação</h4>
             <ul className="space-y-4 text-sm">
               {['Início', 'Grupos de Trabalho', 'Sobre Nós', 'Parceiros', 'Privacidade'].map((item) => (
-                  <li key={item}><a href="#" className="hover:text-brand-neon transition-colors block py-1">{item}</a></li>
+                <li key={item}><a href="#" className="hover:text-brand-neon transition-colors block py-1">{item}</a></li>
               ))}
             </ul>
           </div>
@@ -35,15 +35,11 @@ export const Footer: React.FC = () => {
             <ul className="space-y-6 text-sm">
               <li className="flex items-start gap-4">
                 <div className="p-2 bg-white/5 rounded-lg text-brand-green"><MapPin size={18} /></div>
-                <span>Campus Alto Paraopeba<br />Ouro Branco - MG</span>
-              </li>
-              <li className="flex items-center gap-4">
-                <div className="p-2 bg-white/5 rounded-lg text-brand-green"><Phone size={18} /></div>
-                <span>(31) 3741-0000</span>
+                <span>Alto Paraopeba - MG</span>
               </li>
               <li className="flex items-center gap-4">
                 <div className="p-2 bg-white/5 rounded-lg text-brand-green"><Mail size={18} /></div>
-                <span>contato@inovap.com.br</span>
+                <span>ecossistemainovap@gmail.com</span>
               </li>
             </ul>
           </div>
@@ -51,9 +47,9 @@ export const Footer: React.FC = () => {
           <div>
             <h4 className="text-white font-bold mb-8 text-lg">Atualizações</h4>
             <div className="bg-white/5 p-1 rounded-2xl border border-white/10 flex">
-              <input 
-                type="email" 
-                placeholder="Seu e-mail" 
+              <input
+                type="email"
+                placeholder="Seu e-mail"
                 className="bg-transparent border-none px-4 py-3 text-sm w-full focus:ring-0 text-white placeholder-slate-600"
               />
               <button className="bg-white text-black hover:bg-brand-neon px-6 py-3 rounded-xl text-sm font-bold transition-colors">
@@ -62,7 +58,7 @@ export const Footer: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-slate-600">
           <p>&copy; {new Date().getFullYear()} INOVAP. Todos os direitos reservados.</p>
           <p className="mt-2 md:mt-0 opacity-50">Design System v26.0</p>
