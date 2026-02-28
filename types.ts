@@ -60,6 +60,7 @@ export interface Empresa {
   whatsapp?: string;
   cor_primaria?: string;
   feedbacks?: Feedback[];
+  numero_projetos?: number;
 }
 
 export interface PontuacaoRegra {

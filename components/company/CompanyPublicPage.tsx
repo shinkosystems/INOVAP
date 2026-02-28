@@ -165,7 +165,7 @@ export const CompanyPublicPage: React.FC<CompanyPublicPageProps> = ({ empresa, o
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         {[
                             { icon: Star, value: "4.9", label: "Avaliação Média" },
-                            { icon: TrendingUp, value: "+120", label: "Projetos Entregues" },
+                            { icon: TrendingUp, value: empresa.numero_projetos ? `+${empresa.numero_projetos}` : "+120", label: "Projetos Entregues" },
                             { icon: Users, value: "2k+", label: "Impacto Gerado" },
                             { icon: FileText, value: `${articles.length}+`, label: "Artigos Publicados" }
                         ].map((stat, i) => (

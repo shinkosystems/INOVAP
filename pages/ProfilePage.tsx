@@ -4,7 +4,7 @@ import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
 import { supabase } from '../services/supabase';
 import { User, GT, Cargo, Empresa } from '../types';
-import { Save, ArrowLeft, User as UserIcon, Briefcase, Layers, Shield, Loader2, CheckCircle, AlertCircle, Camera, Building2, Globe, MapPin, Hash, Link as LinkIcon, Eye, Image as ImageIcon, LayoutTemplate, Phone, Instagram, Linkedin, MessageCircle, Type, Palette, AlignLeft, Quote, Plus, Trash2, MessageSquareQuote } from 'lucide-react';
+import { Save, ArrowLeft, User as UserIcon, Briefcase, Layers, Shield, Loader2, CheckCircle, AlertCircle, Camera, Building2, Globe, MapPin, Hash, Link as LinkIcon, Eye, Image as ImageIcon, LayoutTemplate, Phone, Instagram, Linkedin, MessageCircle, Type, Palette, AlignLeft, Quote, Plus, Trash2, MessageSquareQuote, TrendingUp } from 'lucide-react';
 
 interface ProfilePageProps {
     user: User;
@@ -42,7 +42,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
     const [empresaForm, setEmpresaForm] = useState<Partial<Empresa>>({
         nome: '', cnpj: '', cidade: '', uf: '',
         slogan: '', descricao: '', site: '', instagram: '', linkedin: '', whatsapp: '', cor_primaria: '#00ff9d',
-        logo: '', banner: '', feedbacks: []
+        logo: '', banner: '', feedbacks: [], numero_projetos: 0
     });
     const [loadingEmpresa, setLoadingEmpresa] = useState(false);
 
@@ -505,6 +505,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
                                                     onChange={(e) => setEmpresaForm({ ...empresaForm, cnpj: e.target.value })}
                                                     className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-slate-900 dark:text-white focus:border-brand-neon outline-none transition-all"
                                                     placeholder="00.000.000/0000-00"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-300 mb-2 flex items-center gap-2"><TrendingUp size={16} /> Número de Projetos</label>
+                                                <input
+                                                    type="number"
+                                                    value={empresaForm.numero_projetos}
+                                                    onChange={(e) => setEmpresaForm({ ...empresaForm, numero_projetos: parseInt(e.target.value) || 0 })}
+                                                    className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-slate-900 dark:text-white focus:border-brand-neon outline-none transition-all"
+                                                    placeholder="Ex: 120"
                                                 />
                                             </div>
                                             <div className="grid grid-cols-3 gap-4">
