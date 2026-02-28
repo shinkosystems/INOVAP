@@ -45,6 +45,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
         logo: '', banner: '', feedbacks: [], numero_projetos: 0, impacto_gerado: ''
     });
     const [loadingEmpresa, setLoadingEmpresa] = useState(false);
+    const [recebidosFeedbacks, setRecebidosFeedbacks] = useState<any[]>([]);
+    const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
 
     // Options State
     const [gtsOptions, setGtsOptions] = useState<GT[]>([]);
@@ -93,11 +95,30 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
             if (data) {
                 setEmpresa(data);
                 setEmpresaForm(data);
+                fetchRecebidosFeedbacks(data.id);
             }
         } catch (e) {
             console.error("Erro ao buscar empresa", e);
         } finally {
             setLoadingEmpresa(false);
+        }
+    };
+
+    const fetchRecebidosFeedbacks = async (empresaId: number) => {
+        setLoadingFeedbacks(true);
+        try {
+            const { data, error } = await supabase
+                .from('avaliacoes_empresas')
+                .select('*')
+                .eq('empresa_id', empresaId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setRecebidosFeedbacks(data || []);
+        } catch (e) {
+            console.error("Erro ao buscar feedbacks recebidos", e);
+        } finally {
+            setLoadingFeedbacks(false);
         }
     };
 
@@ -229,6 +250,47 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
     const handleRemoveFeedback = (index: number) => {
         const currentFeedbacks = (empresaForm.feedbacks || []).filter((_, i) => i !== index);
         setEmpresaForm({ ...empresaForm, feedbacks: currentFeedbacks });
+    };
+
+    const handleAprovarRecebido = async (fb: any) => {
+        // Opção 1: Apenas marcar como aprovado na tabela (se você for listar todos na página)
+        // Opção 2: Adicionar aos 3 destaques (se houver espaço)
+
+        const currentDestinos = empresaForm.feedbacks || [];
+        if (currentDestinos.length >= 3) {
+            showNotification('error', 'Você já tem 3 destaques. Remova um para adicionar este.');
+            return;
+        }
+
+        const novoDestaque = { author: fb.autor, role: fb.cargo, text: fb.texto };
+
+        try {
+            // Remove da tabela de entrada para "puxar" para os destaques
+            const { error: delError } = await supabase.from('avaliacoes_empresas').delete().eq('id', fb.id);
+            if (delError) throw delError;
+
+            setEmpresaForm({
+                ...empresaForm,
+                feedbacks: [...currentDestinos, novoDestaque]
+            });
+
+            setRecebidosFeedbacks(prev => prev.filter(f => f.id !== fb.id));
+            showNotification('success', 'Comentário movido para os destaques!');
+
+        } catch (e: any) {
+            showNotification('error', 'Erro ao processar aprovação');
+        }
+    };
+
+    const handleRejeitarRecebido = async (id: string) => {
+        try {
+            const { error } = await supabase.from('avaliacoes_empresas').delete().eq('id', id);
+            if (error) throw error;
+            setRecebidosFeedbacks(prev => prev.filter(f => f.id !== id));
+            showNotification('success', 'Avaliação removida.');
+        } catch (e: any) {
+            showNotification('error', 'Erro ao excluir comentário.');
+        }
     };
 
     const handleSaveEmpresa = async () => {
@@ -656,6 +718,54 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
                                     )}
                                 </div>
                             </div>
+
+                            {/* Seção de Moderação (Feedbacks Recebidos) */}
+                            {recebidosFeedbacks.length > 0 && (
+                                <div className="mt-12 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/20 rounded-[3rem] p-8">
+                                    <div className="flex items-center gap-3 mb-8">
+                                        <div className="p-3 bg-amber-500 text-white rounded-2xl shadow-lg shadow-amber-500/20">
+                                            <MessageSquareQuote size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Novas Avaliações Recebidas</h3>
+                                            <p className="text-sm text-slate-500 dark:text-amber-200/60 font-medium">Aprove depoimentos para destacá-los em sua página.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {recebidosFeedbacks.map((fb) => (
+                                            <div key={fb.id} className="bg-white dark:bg-black/30 border border-amber-100 dark:border-white/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div>
+                                                            <div className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-tight">{fb.autor}</div>
+                                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{fb.cargo}</div>
+                                                        </div>
+                                                        <div className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">{new Date(fb.created_at).toLocaleDateString()}</div>
+                                                    </div>
+                                                    <p className="text-slate-600 dark:text-slate-300 text-sm italic mb-6 leading-relaxed">"{fb.texto}"</p>
+                                                </div>
+
+                                                <div className="flex gap-3 border-t border-slate-50 dark:border-white/5 pt-4">
+                                                    <button
+                                                        onClick={() => handleAprovarRecebido(fb)}
+                                                        className="flex-1 py-3 bg-brand-neon hover:bg-brand-neon/90 text-black font-black uppercase text-[10px] tracking-widest rounded-xl transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <CheckCircle size={14} /> Aprovar p/ Destaques
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRejeitarRecebido(fb.id)}
+                                                        className="px-4 py-3 bg-red-100 dark:bg-red-900/20 text-red-600 hover:bg-red-500 hover:text-white rounded-xl transition-all flex items-center justify-center"
+                                                        title="Recusar"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )
                 )}
