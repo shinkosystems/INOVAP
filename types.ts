@@ -37,6 +37,12 @@ export interface Artigo {
   tags: string[];
 }
 
+export interface Feedback {
+  author: string;
+  role: string;
+  text: string;
+}
+
 export interface Empresa {
   id: number;
   responsavel: string;
@@ -53,6 +59,7 @@ export interface Empresa {
   linkedin?: string;
   whatsapp?: string;
   cor_primaria?: string;
+  feedbacks?: Feedback[];
 }
 
 export interface PontuacaoRegra {

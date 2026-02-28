@@ -286,8 +286,8 @@ export const CompanyPublicPage: React.FC<CompanyPublicPageProps> = ({ empresa, o
                 <div className="max-w-6xl mx-auto px-6 relative z-10">
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-16 text-center uppercase tracking-tighter">O que dizem sobre nós</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {testimonials.map((t) => (
-                            <div key={t.id} className="bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 p-10 rounded-[3rem] relative shadow-xl shadow-black/[0.02]">
+                        {(empresa.feedbacks && empresa.feedbacks.length > 0 ? empresa.feedbacks : testimonials).map((t, i) => (
+                            <div key={i} className="bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 p-10 rounded-[3rem] relative shadow-xl shadow-black/[0.02]">
                                 <Quote size={40} className="text-slate-100 dark:text-white/10 absolute top-8 right-8" />
                                 <p className="text-slate-600 dark:text-slate-300 mb-8 font-medium leading-relaxed italic">"{t.text}"</p>
                                 <div>

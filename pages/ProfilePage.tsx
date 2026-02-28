@@ -4,7 +4,7 @@ import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
 import { supabase } from '../services/supabase';
 import { User, GT, Cargo, Empresa } from '../types';
-import { Save, ArrowLeft, User as UserIcon, Briefcase, Layers, Shield, Loader2, CheckCircle, AlertCircle, Camera, Building2, Globe, MapPin, Hash, Link as LinkIcon, Eye, Image as ImageIcon, LayoutTemplate, Phone, Instagram, Linkedin, MessageCircle, Type, Palette, AlignLeft } from 'lucide-react';
+import { Save, ArrowLeft, User as UserIcon, Briefcase, Layers, Shield, Loader2, CheckCircle, AlertCircle, Camera, Building2, Globe, MapPin, Hash, Link as LinkIcon, Eye, Image as ImageIcon, LayoutTemplate, Phone, Instagram, Linkedin, MessageCircle, Type, Palette, AlignLeft, Quote, Plus, Trash2, MessageSquareQuote } from 'lucide-react';
 
 interface ProfilePageProps {
     user: User;
@@ -42,7 +42,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
     const [empresaForm, setEmpresaForm] = useState<Partial<Empresa>>({
         nome: '', cnpj: '', cidade: '', uf: '',
         slogan: '', descricao: '', site: '', instagram: '', linkedin: '', whatsapp: '', cor_primaria: '#00ff9d',
-        logo: '', banner: ''
+        logo: '', banner: '', feedbacks: []
     });
     const [loadingEmpresa, setLoadingEmpresa] = useState(false);
 
@@ -206,6 +206,29 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
         } finally {
             setIsUploadingCompanyImg(false);
         }
+    };
+
+    const handleAddFeedback = () => {
+        const currentFeedbacks = empresaForm.feedbacks || [];
+        if (currentFeedbacks.length >= 3) {
+            showNotification('error', 'Limite de 3 feedbacks atingido.');
+            return;
+        }
+        setEmpresaForm({
+            ...empresaForm,
+            feedbacks: [...currentFeedbacks, { author: '', role: '', text: '' }]
+        });
+    };
+
+    const handleUpdateFeedback = (index: number, field: string, value: string) => {
+        const currentFeedbacks = [...(empresaForm.feedbacks || [])];
+        currentFeedbacks[index] = { ...currentFeedbacks[index], [field]: value };
+        setEmpresaForm({ ...empresaForm, feedbacks: currentFeedbacks });
+    };
+
+    const handleRemoveFeedback = (index: number) => {
+        const currentFeedbacks = (empresaForm.feedbacks || []).filter((_, i) => i !== index);
+        setEmpresaForm({ ...empresaForm, feedbacks: currentFeedbacks });
     };
 
     const handleSaveEmpresa = async () => {
@@ -544,6 +567,73 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onUpdate
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Seção de Feedbacks */}
+                            <div className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[3rem] p-8 backdrop-blur-md">
+                                <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-3 uppercase tracking-tighter">
+                                        <MessageSquareQuote className="text-brand-neon" size={24} /> Depoimentos & Feedbacks
+                                    </h3>
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Até 3 depoimentos</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+                                    {(empresaForm.feedbacks || []).map((fb, idx) => (
+                                        <div key={idx} className="bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-3xl p-6 relative group/fb transition-all hover:border-brand-neon/30">
+                                            <button
+                                                onClick={() => handleRemoveFeedback(idx)}
+                                                className="absolute -top-2 -right-2 w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-full opacity-0 group-hover/fb:opacity-100 transition-opacity shadow-lg"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Autor</label>
+                                                    <input
+                                                        type="text"
+                                                        value={fb.author}
+                                                        onChange={(e) => handleUpdateFeedback(idx, 'author', e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl px-4 py-2 text-sm text-slate-900 dark:text-white focus:border-brand-neon outline-none transition-all"
+                                                        placeholder="Ex: Carlos Silva"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cargo / Empresa</label>
+                                                    <input
+                                                        type="text"
+                                                        value={fb.role}
+                                                        onChange={(e) => handleUpdateFeedback(idx, 'role', e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl px-4 py-2 text-sm text-slate-900 dark:text-white focus:border-brand-neon outline-none transition-all"
+                                                        placeholder="Ex: CEO, TechStart"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Depoimento</label>
+                                                    <textarea
+                                                        value={fb.text}
+                                                        onChange={(e) => handleUpdateFeedback(idx, 'text', e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:border-brand-neon outline-none transition-all h-24 resize-none italic"
+                                                        placeholder="O que esta pessoa diz sobre sua empresa..."
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {(empresaForm.feedbacks || []).length < 3 && (
+                                        <button
+                                            onClick={handleAddFeedback}
+                                            className="h-full min-h-[200px] bg-slate-50/50 dark:bg-white/[0.02] border-2 border-dashed border-slate-200 dark:border-white/10 rounded-3xl flex flex-col items-center justify-center gap-3 text-slate-400 hover:text-brand-neon hover:border-brand-neon/50 hover:bg-brand-neon/5 transition-all group"
+                                        >
+                                            <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-full group-hover:scale-110 transition-transform">
+                                                <Plus size={32} />
+                                            </div>
+                                            <span className="font-black uppercase text-[10px] tracking-widest">Adicionar Depoimento</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
