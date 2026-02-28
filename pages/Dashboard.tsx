@@ -2042,7 +2042,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredMembers.map(m => (
-                      <div key={m.id} className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-8 flex items-center gap-6 group hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden">
+                      <div
+                        key={m.id}
+                        onClick={() => user?.governanca && setSelectedMemberForGts(m)}
+                        className={`bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-8 flex items-center gap-6 group hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden ${user?.governanca ? 'cursor-pointer' : ''}`}
+                      >
                         {/* Decorative Background Element */}
                         <div className="absolute top-0 right-0 w-32 h-32 bg-brand-neon/5 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
 
@@ -2064,7 +2068,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                               {m.pontos || 0} Inovapoints
                             </div>
                             <button className="text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1">
-                              Perfil <ChevronRight size={12} />
+                              {user?.governanca ? 'Gerenciar GTs' : 'Ver Perfil'} <ChevronRight size={12} />
                             </button>
                           </div>
                         </div>
@@ -2081,6 +2085,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       </div>
                     )}
                   </div>
+
+                  {/* Modal de Gestão de Membro e Seus GTs - UI3.0 Borderless */}
+                  {selectedMemberForGts && user?.governanca && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                      <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedMemberForGts(null)}></div>
+                      <div className="relative w-full max-w-2xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4rem] p-12 md:p-16 shadow-2xl animate-fade-in-up">
+                        <button onClick={() => setSelectedMemberForGts(null)} className="absolute top-10 right-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all shadow-sm"><X size={24} /></button>
+
+                        <div className="flex flex-col items-center text-center mb-12">
+                          <div className="relative mb-6">
+                            <div className="w-32 h-32 rounded-[3.5rem] bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden ring-8 ring-brand-neon/5">
+                              {selectedMemberForGts.avatar ? <img src={selectedMemberForGts.avatar} className="w-full h-full object-cover" /> : <UserIcon size={48} className="text-slate-300 dark:text-slate-800" />}
+                            </div>
+                            <div className="absolute -bottom-2 -right-2 bg-brand-neon text-black p-3 rounded-2xl shadow-neon border-4 border-white dark:border-brand-surface">
+                              <ShieldCheck size={20} />
+                            </div>
+                          </div>
+                          <h3 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{selectedMemberForGts.nome}</h3>
+                          <p className="text-slate-500 dark:text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 italic">{selectedMemberForGts.email}</p>
+                        </div>
+
+                        <div className="space-y-8">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">Células de Atuação</h4>
+                            <span className="text-[10px] font-bold text-brand-neon">{(selectedMemberForGts.gts || []).length} GTs</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            {gts.map(gt => {
+                              const isMember = selectedMemberForGts.gts?.includes(gt.id);
+                              return (
+                                <button
+                                  key={gt.id}
+                                  onClick={() => isMember ? handleRemoveMemberFromGt(selectedMemberForGts, gt.id) : handleAddMemberToGt(selectedMemberForGts, gt.id)}
+                                  className={`flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all group/btn ${isMember ? 'bg-brand-neon/10 border-brand-neon/40 text-brand-neon' : 'bg-slate-50 dark:bg-brand-elevated border-transparent text-slate-500 dark:text-slate-400 hover:border-slate-200 dark:hover:border-white/10'}`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <Boxes size={18} className={isMember ? 'text-brand-neon' : 'text-slate-400 dark:text-slate-600'} />
+                                    <span className="text-[11px] font-black uppercase tracking-tight truncate max-w-[120px]">{gt.gt}</span>
+                                  </div>
+                                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isMember ? 'bg-brand-neon text-black' : 'bg-white dark:bg-brand-surface text-slate-200 dark:text-slate-800'}`}>
+                                    {isMember ? <CheckSquare size={14} /> : <Plus size={14} />}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="mt-12 pt-10 border-t border-slate-100 dark:border-white/5">
+                          <button
+                            onClick={() => setSelectedMemberForGts(null)}
+                            className="w-full bg-slate-900 dark:bg-white text-white dark:text-black py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl hover:scale-[1.02] transition-all"
+                          >
+                            Finalizar Gestão
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
