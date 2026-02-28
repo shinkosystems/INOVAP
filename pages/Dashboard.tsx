@@ -16,7 +16,8 @@ import {
   LayoutList, Calendar, ChevronLeft, Paperclip, MessageSquare, Download,
   Plus,
   ChevronRight as ChevronRightIcon,
-  Sun, Moon
+  Sun, Moon,
+  Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, Link, Quote, Eraser, Code, Undo, Redo
 } from 'lucide-react';
 import { User, GT, Artigo, Evento, Inscricao, Cargo, PontuacaoRegra, PontuacaoLog, Empresa, Tarefa, TarefaComentario } from '../types';
 import { supabase } from '../services/supabase';
@@ -59,6 +60,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [rules, setRules] = useState<PontuacaoRegra[]>([]);
   const [logs, setLogs] = useState<PontuacaoLog[]>([]);
   const [tasks, setTasks] = useState<Tarefa[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
 
   // Admin States
   const [allArticles, setAllArticles] = useState<Artigo[]>([]);
@@ -166,7 +168,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     if (!user) return;
     setLoading(true);
     try {
-      const [gtsRes, usersRes, eventsRes, ticketsRes, articlesRes, rulesRes, logsRes, inscriptionsCountRes, tasksRes] = await Promise.all([
+      const [gtsRes, usersRes, eventsRes, ticketsRes, articlesRes, rulesRes, logsRes, inscriptionsCountRes, tasksRes, empresasRes] = await Promise.all([
         supabase.from('gts').select('*').order('gt'),
         supabase.from('users').select('*').order('pontos', { ascending: false }),
         supabase.from('eventos').select('*').order('data_inicio', { ascending: true }),
@@ -175,7 +177,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         supabase.from('pontuacao_regras').select('*').order('valor', { ascending: false }),
         supabase.from('pontuacao_logs').select('*').order('created_at', { ascending: false }).limit(20),
         supabase.from('inscricoes').select('evento_id'),
-        supabase.from('tarefas').select('*, responsavel:users(*), gt:gts(*)').order('prazo', { ascending: true })
+        supabase.from('tarefas').select('*, responsavel:users(*), gt:gts(*)').order('prazo', { ascending: true }),
+        supabase.from('empresas').select('*')
       ]);
 
       if (gtsRes.data) setGts(gtsRes.data);
@@ -189,6 +192,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (rulesRes.data) setRules(rulesRes.data);
       if (logsRes.data) setLogs(logsRes.data as any);
       if (tasksRes.data) setTasks(tasksRes.data as any);
+      if (empresasRes.data) setEmpresas(empresasRes.data);
 
       if (inscriptionsCountRes.data) {
         const stats: Record<number, number> = {};
@@ -214,11 +218,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     fetchData();
   }, [fetchData]);
 
-  // Rich Text Editor Commands
   const execEditorCommand = (command: string, value?: string) => {
+    editorRef.current?.focus();
     document.execCommand(command, false, value);
     if (editorRef.current) {
       setNewArticleData(prev => ({ ...prev, conteudo: editorRef.current?.innerHTML || '' }));
+    }
+  };
+
+  const handleInsertLink = () => {
+    const url = prompt('Insira a URL do link:', 'https://');
+    if (url) {
+      execEditorCommand('createLink', url);
     }
   };
 
@@ -597,7 +608,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
         </div>
       </aside>
 
-      <main className="flex-1 lg:ml-20 min-h-screen relative bg-white dark:bg-brand-black transition-all duration-500">
+      <main className="flex-1 lg:ml-20 min-h-screen relative bg-white dark:bg-brand-black transition-all duration-500 pb-32 lg:pb-0">
         <header className="sticky top-0 z-30 flex items-center justify-between px-6 lg:px-10 py-6 lg:py-8 bg-white/40 dark:bg-brand-black/40 backdrop-blur-3xl">
           <div className="flex items-center gap-4">
             <button
@@ -707,7 +718,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
           </div>
         )}
 
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
           {notification && (
             <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
               <div className={`px-6 py-3.5 rounded-full shadow-2xl backdrop-blur-3xl border flex items-center gap-3 ${notification.type === 'success' ? 'bg-brand-neon/10 border-brand-neon/40 text-brand-neon' : 'bg-red-500/10 border-red-500/40 text-red-400'}`}>
@@ -730,13 +741,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             <div className="animate-fade-in-up">
               {/* Overview Tab - UI3.0 Minimalist (Borderless) */}
               {activeTab === 'overview' && (
-                <div className="space-y-16">
+                <div className="space-y-8 md:space-y-16">
                   {/* Stats Grid - Ultra Minimalist */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-brand-neon p-10 rounded-[3rem] text-black relative overflow-hidden group hover:scale-[1.02] transition-all duration-500">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                    <div className="bg-brand-neon p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] text-black relative overflow-hidden group hover:scale-[1.02] transition-all duration-500">
                       <Trophy className="absolute -right-8 -bottom-8 opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700" size={160} />
-                      <div className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40 mb-16">Patrimônio de Inovação</div>
-                      <div className="text-7xl font-black tracking-tighter leading-none">{user.pontos || 0}</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40 mb-8 md:mb-16">Patrimônio de Inovação</div>
+                      <div className="text-5xl md:text-7xl font-black tracking-tighter leading-none">{user.pontos || 0}</div>
                       <div className="mt-4 text-[10px] font-black uppercase tracking-widest text-black/60">InovaPoints Ganhos</div>
                     </div>
                     {[
@@ -744,11 +755,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       { label: 'Produção Intelectual', value: user.artigos || 0, icon: FileText },
                       { label: 'Experiências', value: myTickets.length, icon: Ticket }
                     ].map((stat, i) => (
-                      <div key={i} className="bg-slate-50 dark:bg-brand-surface p-10 rounded-[3rem] group transition-all duration-500 hover:bg-slate-100 dark:hover:bg-brand-elevated">
-                        <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] mb-16">{stat.label}</div>
+                      <div key={i} className="bg-slate-50 dark:bg-brand-surface p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] group transition-all duration-500 hover:bg-slate-100 dark:hover:bg-brand-elevated">
+                        <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] mb-8 md:mb-16">{stat.label}</div>
                         <div className="flex items-end justify-between">
-                          <div className="text-7xl font-black tracking-tighter leading-none text-slate-800 dark:text-slate-100">{stat.value}</div>
-                          <stat.icon size={28} className="text-brand-neon opacity-0 group-hover:opacity-40 transition-all duration-500 -translate-x-2 group-hover:translate-x-0" />
+                          <div className="text-5xl md:text-7xl font-black tracking-tighter leading-none text-slate-800 dark:text-slate-100">{stat.value}</div>
+                          <stat.icon className="text-slate-200 dark:text-slate-800 group-hover:text-brand-neon transition-colors duration-500" size={40} />
                         </div>
                       </div>
                     ))}
@@ -882,23 +893,64 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Corpo do Artigo</label>
                             <div className="flex flex-col h-full bg-white dark:bg-brand-surface/50 rounded-[3rem] overflow-hidden border border-slate-100 dark:border-white/5 shadow-2xl shadow-black/5">
                               {/* Modern Editor Toolbar */}
-                              <div className="flex items-center gap-2 p-4 bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
-                                <button onClick={() => execEditorCommand('bold')} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors" title="Negrito"><Bold size={18} /></button>
-                                <button onClick={() => execEditorCommand('italic')} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors" title="Itálico"><Italic size={18} /></button>
-                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-2"></div>
-                                <button onClick={() => execEditorCommand('formatBlock', 'h1')} className="px-3 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-[10px] font-black text-slate-500 transition-colors" title="H1">H1</button>
-                                <button onClick={() => execEditorCommand('formatBlock', 'h2')} className="px-3 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-[10px] font-black text-slate-500 transition-colors" title="H2">H2</button>
-                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-2"></div>
-                                <button onClick={() => execEditorCommand('insertUnorderedList')} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors"><List size={18} /></button>
-                                <button onClick={() => contentImageInputRef.current?.click()} className="w-10 h-10 rounded-xl hover:bg-white dark:hover:bg-brand-elevated flex items-center justify-center text-slate-500 transition-colors"><ImageIcon size={18} /></button>
+                              <div className="flex flex-wrap items-center gap-1.5 p-3 bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
+                                <div className="flex items-center gap-1 bg-white/40 dark:bg-black/20 p-1 rounded-xl">
+                                  <button onClick={() => execEditorCommand('undo')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Desfazer"><Undo size={14} /></button>
+                                  <button onClick={() => execEditorCommand('redo')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Refazer"><Redo size={14} /></button>
+                                </div>
+
+                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+                                <div className="flex items-center gap-1 bg-white/40 dark:bg-black/20 p-1 rounded-xl">
+                                  <button onClick={() => execEditorCommand('bold')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Negrito"><Bold size={14} /></button>
+                                  <button onClick={() => execEditorCommand('italic')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Itálico"><Italic size={14} /></button>
+                                  <button onClick={() => execEditorCommand('underline')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Sublinhado"><Underline size={14} /></button>
+                                  <button onClick={() => execEditorCommand('strikeThrough')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Riscado"><Strikethrough size={14} /></button>
+                                </div>
+
+                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+                                <div className="flex items-center gap-1 bg-white/40 dark:bg-black/20 p-1 rounded-xl">
+                                  <button onClick={() => execEditorCommand('formatBlock', 'h1')} className="px-2 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-[9px] font-black text-slate-500 transition-all" title="H1">H1</button>
+                                  <button onClick={() => execEditorCommand('formatBlock', 'h2')} className="px-2 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-[9px] font-black text-slate-500 transition-all" title="H2">H2</button>
+                                </div>
+
+                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+                                <div className="flex items-center gap-1 bg-white/40 dark:bg-black/20 p-1 rounded-xl">
+                                  <button onClick={() => execEditorCommand('justifyLeft')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Alinhar Esquerda"><AlignLeft size={14} /></button>
+                                  <button onClick={() => execEditorCommand('justifyCenter')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Centralizar"><AlignCenter size={14} /></button>
+                                  <button onClick={() => execEditorCommand('justifyRight')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Alinhar Direita"><AlignRight size={14} /></button>
+                                </div>
+
+                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+                                <div className="flex items-center gap-1 bg-white/40 dark:bg-black/20 p-1 rounded-xl">
+                                  <button onClick={() => execEditorCommand('insertUnorderedList')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Lista Marcadores"><List size={14} /></button>
+                                  <button onClick={() => execEditorCommand('insertOrderedList')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Lista Numerada"><ListOrdered size={14} /></button>
+                                </div>
+
+                                <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+                                <div className="flex items-center gap-1 bg-white/40 dark:bg-black/20 p-1 rounded-xl">
+                                  <button onClick={handleInsertLink} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Inserir Link"><Link size={14} /></button>
+                                  <button onClick={() => execEditorCommand('formatBlock', 'blockquote')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Citação"><Quote size={14} /></button>
+                                  <button onClick={() => execEditorCommand('formatBlock', 'pre')} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Código"><Code size={14} /></button>
+                                  <button onClick={() => contentImageInputRef.current?.click()} className="w-8 h-8 rounded-lg hover:bg-brand-neon hover:text-black flex items-center justify-center text-slate-500 transition-all" title="Inserir Imagem"><ImageIcon size={14} /></button>
+                                </div>
+
+                                <div className="ml-auto flex items-center gap-1 bg-white/40 dark:bg-black/20 p-1 rounded-xl">
+                                  <button onClick={() => execEditorCommand('removeFormat')} className="w-8 h-8 rounded-lg hover:bg-red-500 hover:text-white flex items-center justify-center text-slate-500 transition-all" title="Limpar Formatação"><Eraser size={14} /></button>
+                                </div>
                                 <input type="file" ref={contentImageInputRef} className="hidden" accept="image/*" onChange={handleContentImageUpload} />
                               </div>
 
                               <div
                                 ref={editorRef}
                                 contentEditable
+                                data-placeholder="Comece a escrever sua obra-prima aqui..."
                                 onInput={(e) => setNewArticleData(prev => ({ ...prev, conteudo: e.currentTarget.innerHTML }))}
-                                className="flex-1 min-h-[400px] max-h-[600px] overflow-y-auto p-12 outline-none prose dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 selection:bg-brand-neon/30"
+                                className="flex-1 min-h-[500px] max-h-[700px] overflow-y-auto p-12 outline-none prose dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 selection:bg-brand-neon/30 focus:shadow-inner"
                               />
                             </div>
                           </div>
@@ -1029,90 +1081,102 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
                   {selectedEventDetails && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
-                      <div className="absolute inset-0 bg-white/80 dark:bg-black/95 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedEventDetails(null)}></div>
-                      <div className="relative w-full max-w-6xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[90vh] animate-fade-in-up">
-                        <div className="w-full md:w-2/5 h-64 md:h-full relative overflow-hidden shrink-0">
-                          {selectedEventDetails.imagem_capa ? (
-                            <img src={selectedEventDetails.imagem_capa} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-slate-900 flex items-center justify-center text-brand-neon">
-                              <Calendar size={80} />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                          <div className="absolute bottom-12 left-12 right-12">
-                            <div className="flex flex-col gap-3">
-                              <span className="bg-brand-neon text-black px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest self-start">
-                                {selectedEventDetails.tipo}
-                              </span>
-                              <h1 className="text-4xl md:text-5xl font-black text-white leading-tight uppercase tracking-tighter shadow-sm">{selectedEventDetails.titulo}</h1>
-                            </div>
-                          </div>
-                          <button onClick={() => setSelectedEventDetails(null)} className="absolute top-10 left-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md text-white hover:bg-white hover:text-black transition-all">
-                            <X size={24} />
-                          </button>
-                        </div>
-
-                        <div className="flex-1 flex flex-col min-w-0">
-                          <div className="flex-1 overflow-y-auto p-12 md:p-20 space-y-12">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                              <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">O Propósito</label>
-                                <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium">
-                                  {selectedEventDetails.descricao || "Este encontro é um marco estratégico para o ecossistema, focado em gerar conexões de alto valor entre as hélices da inovação."}
-                                </p>
-                              </div>
-                              <div className="bg-slate-50/50 dark:bg-brand-surface/40 p-10 rounded-[3rem] space-y-8 border border-slate-100 dark:border-white/5">
-                                <div className="flex items-center gap-6">
-                                  <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
-                                    <MapPin size={24} />
+                      {(() => {
+                        const isInscribed = myTickets.some(t => t.evento_id === selectedEventDetails.id);
+                        return (
+                          <>
+                            <div className="absolute inset-0 bg-white/80 dark:bg-black/95 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedEventDetails(null)}></div>
+                            <div className="relative w-full max-w-6xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[90vh] animate-fade-in-up">
+                              <div className="w-full md:w-2/5 h-64 md:h-full relative overflow-hidden shrink-0">
+                                {selectedEventDetails.imagem_capa ? (
+                                  <img src={selectedEventDetails.imagem_capa} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-slate-900 flex items-center justify-center text-brand-neon">
+                                    <Calendar size={80} />
                                   </div>
-                                  <div>
-                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Local das Ideias</label>
-                                    <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">{selectedEventDetails.local.split(',').slice(0, 2).join(',')}</p>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                                <div className="absolute bottom-12 left-12 right-12">
+                                  <div className="flex flex-col gap-3">
+                                    <span className="bg-brand-neon text-black px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest self-start">
+                                      {selectedEventDetails.tipo}
+                                    </span>
+                                    {isInscribed && (
+                                      <span className="bg-white/20 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest self-start border border-white/10">
+                                        Inscrito
+                                      </span>
+                                    )}
                                   </div>
+                                  <h1 className="text-4xl md:text-5xl font-black text-white leading-tight uppercase tracking-tighter shadow-sm">{selectedEventDetails.titulo}</h1>
                                 </div>
-                                <div className="flex items-center gap-6">
-                                  <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
-                                    <Calendar size={24} />
-                                  </div>
-                                  <div>
-                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Cronograma</label>
-                                    <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">
-                                      {new Date(selectedEventDetails.data_inicio).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="p-12 md:p-20 pt-0 bg-white/50 dark:bg-brand-surface/20 backdrop-blur-xl border-t border-slate-100 dark:border-white/5">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-5">
-                                <div className="flex -space-x-4">
-                                  {[1, 2, 3, 4].map(i => <div key={i} className="w-12 h-12 rounded-2xl border-4 border-white dark:border-brand-surface bg-slate-200 overflow-hidden"><UserIcon size={20} className="m-auto mt-3 text-slate-400" /></div>)}
-                                </div>
-                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">+{eventStats[selectedEventDetails.id] || 0} Visionários confirmados</p>
-                              </div>
-                              {!myTickets.some(t => t.evento_id === selectedEventDetails.id) ? (
-                                <button
-                                  onClick={() => handleWithdrawTicket(selectedEventDetails)}
-                                  className="group bg-brand-neon text-black px-12 py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all flex items-center gap-4 uppercase tracking-[0.2em] text-[10px]"
-                                >
-                                  Resgatar Acesso
-                                  <Zap size={20} className="group-hover:rotate-12 transition-transform" />
+                                <button onClick={() => setSelectedEventDetails(null)} className="absolute top-10 left-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md text-white hover:bg-white hover:text-black transition-all">
+                                  <X size={24} />
                                 </button>
-                              ) : (
-                                <div className="flex items-center gap-4 text-brand-green bg-brand-green/10 px-10 py-6 rounded-[2rem] border border-brand-green/20">
-                                  <CheckCircle size={20} />
-                                  <span className="font-black text-[10px] uppercase tracking-widest">Sua presença está confirmada</span>
+                              </div>
+
+                              <div className="flex-1 flex flex-col min-w-0">
+                                <div className="flex-1 overflow-y-auto p-12 md:p-20 space-y-12">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                    <div className="space-y-4">
+                                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">O Propósito</label>
+                                      <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium">
+                                        {selectedEventDetails.descricao || "Este encontro é um marco estratégico para o ecossistema, focado em gerar conexões de alto valor entre as hélices da inovação."}
+                                      </p>
+                                    </div>
+                                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 p-10 rounded-[3rem] space-y-8 border border-slate-100 dark:border-white/5">
+                                      <div className="flex items-center gap-6">
+                                        <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
+                                          <MapPin size={24} />
+                                        </div>
+                                        <div>
+                                          <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Local das Ideias</label>
+                                          <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">{selectedEventDetails.local.split(',').slice(0, 2).join(',')}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-6">
+                                        <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
+                                          <Calendar size={24} />
+                                        </div>
+                                        <div>
+                                          <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Cronograma</label>
+                                          <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">
+                                            {new Date(selectedEventDetails.data_inicio).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              )}
+
+                                <div className="p-12 md:p-20 pt-0 bg-white/50 dark:bg-brand-surface/20 backdrop-blur-xl border-t border-slate-100 dark:border-white/5">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-5">
+                                      <div className="flex -space-x-4">
+                                        {[1, 2, 3, 4].map(i => <div key={i} className="w-12 h-12 rounded-2xl border-4 border-white dark:border-brand-surface bg-slate-200 overflow-hidden"><UserIcon size={20} className="m-auto mt-3 text-slate-400" /></div>)}
+                                      </div>
+                                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">+{eventStats[selectedEventDetails.id] || 0} Visionários confirmados</p>
+                                    </div>
+                                    {!myTickets.some(t => t.evento_id === selectedEventDetails.id) ? (
+                                      <button
+                                        onClick={() => handleWithdrawTicket(selectedEventDetails)}
+                                        className="group bg-brand-neon text-black px-12 py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all flex items-center gap-4 uppercase tracking-[0.2em] text-[10px]"
+                                      >
+                                        Resgatar Acesso
+                                        <Zap size={20} className="group-hover:rotate-12 transition-transform" />
+                                      </button>
+                                    ) : (
+                                      <div className="flex items-center gap-4 text-brand-green bg-brand-green/10 px-10 py-6 rounded-[2rem] border border-brand-green/20">
+                                        <CheckCircle size={20} />
+                                        <span className="font-black text-[10px] uppercase tracking-widest">Sua presença está confirmada</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -1673,7 +1737,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         <span>Extrato de Impacto</span>
                         <History size={18} className="text-brand-neon" />
                       </h3>
-                      <div className="space-y-3">
+                      <div className="flex-1 space-y-3">
                         {logs.map(log => (
                           <div key={log.id} className="p-6 bg-white/40 dark:bg-brand-black/20 rounded-[2rem] flex items-center justify-between border border-transparent hover:border-white/5 transition-all">
                             <div>
@@ -2072,51 +2136,78 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <div className="space-y-12">
                   <div className="flex justify-between items-end gap-8">
                     <div>
-                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
-                        <Trophy className="text-brand-neon" size={40} /> Ranking de Impacto
+                      <h2 className="text-2xl md:text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                        <Trophy className="text-brand-neon" size={32} /> Ranking de Impacto
                       </h2>
-                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Os líderes da transformação no ecossistema.</p>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium text-sm md:text-base">Os líderes da transformação no ecossistema.</p>
                     </div>
                   </div>
 
                   <div className="bg-transparent overflow-hidden">
-                    <table className="w-full text-left border-separate border-spacing-y-3">
-                      <thead>
-                        <tr>
-                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Posição</th>
-                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Perfil do Membro</th>
-                          <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] text-right">Potencial Acumulado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ranking.map((u, i) => (
-                          <tr key={u.id} className="group transition-all duration-300">
-                            <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-l-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-center">
-                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl mx-auto ${i === 0 ? 'bg-brand-neon text-black shadow-neon scale-110' : i === 1 ? 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300' : i === 2 ? 'bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400' : 'text-slate-400 dark:text-slate-700'}`}>
-                                {i + 1}
-                              </div>
-                            </td>
-                            <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors">
-                              <div className="flex items-center gap-5">
-                                <div className="w-14 h-14 rounded-2xl bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:border-brand-neon/30 transition-colors">
-                                  {u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : <UserIcon size={24} className="text-slate-300 dark:text-slate-800" />}
-                                </div>
-                                <div>
-                                  <p className="font-black text-slate-800 dark:text-slate-100 text-lg tracking-tight">{u.nome}</p>
-                                  <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mt-1">Hélice da Inovação</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-r-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-right">
-                              <span className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white group-hover:text-brand-neon transition-colors">
-                                {u.pontos}
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">pts</span>
-                              </span>
-                            </td>
+                    {/* Desktop View */}
+                    <div className="hidden md:block">
+                      <table className="w-full text-left border-separate border-spacing-y-3">
+                        <thead>
+                          <tr>
+                            <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Posição</th>
+                            <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Perfil do Membro</th>
+                            <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] text-right">Potencial Acumulado</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {ranking.map((u, i) => (
+                            <tr key={u.id} className="group transition-all duration-300">
+                              <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-l-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-center">
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl mx-auto ${i === 0 ? 'bg-brand-neon text-black shadow-neon scale-110' : i === 1 ? 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300' : i === 2 ? 'bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400' : 'text-slate-400 dark:text-slate-700'}`}>
+                                  {i + 1}
+                                </div>
+                              </td>
+                              <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors">
+                                <div className="flex items-center gap-5">
+                                  <div className="w-14 h-14 rounded-2xl bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:border-brand-neon/30 transition-colors">
+                                    {u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : <UserIcon size={24} className="text-slate-300 dark:text-slate-800" />}
+                                  </div>
+                                  <div>
+                                    <p className="font-black text-slate-800 dark:text-slate-100 text-lg tracking-tight">{u.nome}</p>
+                                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mt-1">Hélice da Inovação</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-r-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-right">
+                                <span className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white group-hover:text-brand-neon transition-colors">
+                                  {u.pontos}
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">pts</span>
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile View */}
+                    <div className="md:hidden space-y-4">
+                      {ranking.map((u, i) => (
+                        <div key={u.id} className="bg-slate-50/50 dark:bg-brand-surface/40 p-6 rounded-[2rem] flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${i === 0 ? 'bg-brand-neon text-black' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}`}>
+                              {i + 1}
+                            </div>
+                            <div className="w-12 h-12 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-white/10 overflow-hidden">
+                              {u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="m-auto mt-2.5 text-slate-300" />}
+                            </div>
+                            <div>
+                              <p className="font-black text-slate-900 dark:text-white text-sm">{u.nome}</p>
+                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Membro</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xl font-black text-brand-neon leading-none">{u.pontos}</p>
+                            <p className="text-[8px] font-black text-slate-500 uppercase">PTS</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -2126,10 +2217,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <div className="space-y-12">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
                     <div>
-                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
-                        <Users size={40} className="text-brand-neon" /> Comunidade INOVAP
+                      <h2 className="text-2xl md:text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white">
+                        <Users size={32} className="text-brand-neon" /> Comunidade INOVAP
                       </h2>
-                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Conecte-se com as mentes brilhantes do nosso ecossistema.</p>
+                      <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium text-sm md:text-base">Conecte-se com as mentes brilhantes do nosso ecossistema.</p>
                     </div>
 
                     <div className="relative w-full md:w-80 group">
@@ -2145,39 +2236,48 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredMembers.map(m => (
-                      <div
-                        key={m.id}
-                        onClick={() => user?.governanca && setSelectedMemberForGts(m)}
-                        className={`bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-8 flex items-center gap-6 group hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden ${user?.governanca ? 'cursor-pointer' : ''}`}
-                      >
-                        {/* Decorative Background Element */}
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-neon/5 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                    {filteredMembers.map(m => {
+                      const memberCompany = empresas.find(e => e.responsavel === m.uuid);
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => {
+                            if (user?.governanca) {
+                              setSelectedMemberForGts(m);
+                            } else if (memberCompany) {
+                              onViewCompany(memberCompany);
+                            }
+                          }}
+                          className={`bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-8 flex items-center gap-6 group hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden ${(user?.governanca || memberCompany) ? 'cursor-pointer' : ''}`}
+                        >
+                          {/* Decorative Background Element */}
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-brand-neon/5 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
 
-                        <div className="relative">
-                          <div className="w-20 h-20 rounded-[2rem] bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-500 ring-0 group-hover:ring-4 ring-brand-neon/10">
-                            {m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <Users size={32} className="text-slate-300 dark:text-slate-800" />}
-                          </div>
-                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-neon rounded-full border-4 border-white dark:border-brand-surface flex items-center justify-center">
-                            <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
-                          </div>
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-black text-slate-900 dark:text-white text-xl tracking-tight truncate">{m.nome}</h4>
-                          <p className="text-[11px] text-slate-400 dark:text-slate-600 font-bold mt-1 truncate lowercase">{m.email}</p>
-
-                          <div className="mt-4 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-                            <div className="px-3 py-1 bg-brand-neon/10 rounded-full text-[9px] font-black text-brand-neon uppercase tracking-tighter">
-                              {m.pontos || 0} Inovapoints
+                          <div className="relative">
+                            <div className="w-20 h-20 rounded-[2rem] bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-500 ring-0 group-hover:ring-4 ring-brand-neon/10">
+                              {m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" /> : <Users size={32} className="text-slate-300 dark:text-slate-800" />}
                             </div>
-                            <button className="text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1">
-                              {user?.governanca ? 'Gerenciar GTs' : 'Ver Perfil'} <ChevronRight size={12} />
-                            </button>
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-neon rounded-full border-4 border-white dark:border-brand-surface flex items-center justify-center">
+                              <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-black text-slate-900 dark:text-white text-xl tracking-tight truncate">{m.nome}</h4>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-600 font-bold mt-1 truncate lowercase">{m.email}</p>
+
+                            <div className="mt-4 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+                              <div className="px-3 py-1 bg-brand-neon/10 rounded-full text-[9px] font-black text-brand-neon uppercase tracking-tighter">
+                                {m.pontos || 0} Inovapoints
+                              </div>
+                              <button className="text-[10px] font-black text-slate-400 hover:text-brand-neon dark:hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1">
+                                {user?.governanca ? 'Gerenciar GTs' : memberCompany ? 'Ver Empresa' : 'Ver Perfil'} <ChevronRight size={12} />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {filteredMembers.length === 0 && (
                       <div className="col-span-full py-20 text-center animate-fade-in">
@@ -2253,6 +2353,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               )}
             </div>
           )}
+        </div>
+        {/* Bottom Navigation for Mobile - UI3.0 Tab Bar Refined */}
+        <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[420px] z-[60] animate-fade-in-up">
+          <nav className="bg-white/80 dark:bg-brand-surface/80 backdrop-blur-3xl border border-slate-200/40 dark:border-white/5 rounded-[2.8rem] p-2 flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.3)] ring-1 ring-black/5">
+            {[
+              { id: 'overview', label: 'Início', icon: LayoutDashboard },
+              { id: 'members', label: 'Fórum', icon: Users },
+              { id: 'tasks', label: 'Ações', icon: CheckSquare, restricted: true },
+              { id: 'agenda', label: 'Agenda', icon: CalendarRange },
+              { id: 'profile', label: 'Perfil', icon: UserIcon, action: onProfileClick }
+            ]
+              .filter(item => {
+                if (item.restricted) {
+                  return user.governanca || (user.gts && user.gts.length > 0);
+                }
+                return true;
+              })
+              .map(item => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => item.action ? item.action() : setActiveTab(item.id as Tab)}
+                    className={`relative flex flex-col items-center justify-center flex-1 h-16 rounded-[2rem] transition-all duration-500 ${isActive ? 'text-brand-neon' : 'text-slate-400 dark:text-slate-600 hover:text-slate-900 dark:hover:text-white'}`}
+                  >
+                    <div className={`transition-all duration-500 ease-out ${isActive ? 'scale-110 -translate-y-1.5' : 'scale-100 translate-y-0'}`}>
+                      <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                    </div>
+                    {isActive ? (
+                      <span className="absolute bottom-2 text-[8px] font-black uppercase tracking-[0.2em] animate-fade-in-up pb-0.5">{item.label}</span>
+                    ) : (
+                      <div className="absolute bottom-2 w-1 h-1 bg-slate-300 dark:bg-slate-800 rounded-full opacity-0 translate-y-2" />
+                    )}
+                    {isActive && (
+                      <div className="absolute -top-1 w-12 h-0.5 bg-gradient-to-r from-transparent via-brand-neon to-transparent blur-[1px]" />
+                    )}
+                  </button>
+                );
+              })}
+          </nav>
         </div>
       </main>
     </div>

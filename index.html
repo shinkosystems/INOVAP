@@ -149,6 +149,19 @@
       border-color: var(--border-normal);
     }
 
+    /* Editor Placeholder */
+    [contenteditable]:empty:before {
+      content: attr(data-placeholder);
+      color: #94a3b8;
+      pointer-events: none;
+      display: block;
+      opacity: 0.5;
+    }
+
+    .light [contenteditable]:empty:before {
+      color: #94a3b8;
+    }
+
     /* Transitions */
     .page-transition {
       animation: fadeIn 0.4s ease-out;
