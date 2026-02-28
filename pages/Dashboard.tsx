@@ -142,6 +142,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   // Check-in States
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
@@ -597,10 +598,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       </aside>
 
       <main className="flex-1 lg:ml-20 min-h-screen relative bg-white dark:bg-brand-black transition-all duration-500">
-        <header className="sticky top-0 z-30 flex items-center justify-between px-10 py-8 bg-white/40 dark:bg-brand-black/40 backdrop-blur-3xl">
-          <div className="hidden lg:block">
-            <h2 className="text-slate-900 dark:text-white text-xl font-black tracking-tight">Olá, {user.nome.split(' ')[0]} 👋</h2>
-            <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">Status do Ecossistema: <span className="text-brand-neon">Ativo</span></p>
+        <header className="sticky top-0 z-30 flex items-center justify-between px-6 lg:px-10 py-6 lg:py-8 bg-white/40 dark:bg-brand-black/40 backdrop-blur-3xl">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden w-10 h-10 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/[0.05] flex items-center justify-center text-slate-500 dark:text-slate-400"
+            >
+              <MenuIcon size={20} />
+            </button>
+            <div className="hidden lg:block">
+              <h2 className="text-slate-900 dark:text-white text-xl font-black tracking-tight">Olá, {user.nome.split(' ')[0]} 👋</h2>
+              <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">Status do Ecossistema: <span className="text-brand-neon">Ativo</span></p>
+            </div>
+            <div className="lg:hidden">
+              <h2 className="text-slate-900 dark:text-white text-sm font-black tracking-tight">Olá, {user.nome.split(' ')[0]} 👋</h2>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -611,13 +623,89 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button onClick={onProfileClick} className="flex items-center gap-3 pl-3 pr-1 py-1 rounded-full bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/[0.05] hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-all group">
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{user.nome.split(' ')[0]}</span>
+              <span className="hidden sm:inline text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{user.nome.split(' ')[0]}</span>
               <div className="w-8 h-8 rounded-full border border-white/10 overflow-hidden bg-slate-200 dark:bg-white/5">
                 {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <UserIcon size={14} className="m-auto mt-2 text-slate-400" />}
               </div>
             </button>
           </div>
         </header>
+
+        {/* Mobile Sidebar/Drawer - UI3.0 Refined */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-[100] lg:hidden">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsMobileMenuOpen(false)}></div>
+            <aside className="absolute top-0 left-0 bottom-0 w-[280px] bg-white dark:bg-brand-surface shadow-2xl flex flex-col animate-slide-in-left">
+              <div className="p-8 flex items-center justify-between border-b border-slate-100 dark:border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-brand-neon rounded-xl flex items-center justify-center shadow-neon">
+                    <Logo dark={false} className="scale-50 invert" />
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">PAINEL</span>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400"><X size={20} /></button>
+              </div>
+
+              <nav className="flex-1 p-6 space-y-2 overflow-y-auto">
+                {[
+                  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+                  { id: 'ranking', label: 'Ranking', icon: Star },
+                  { id: 'members', label: 'Membros', icon: Users },
+                  { id: 'tasks', label: 'Tarefas', icon: ListTodo, restricted: true },
+                  { id: 'agenda', label: 'Agenda', icon: CalendarRange },
+                  { id: 'articles', label: 'Meus Artigos', icon: FileText, restricted: true },
+                  { id: 'my_events', label: 'Ingressos', icon: Ticket }
+                ]
+                  .filter(item => {
+                    if (item.restricted) {
+                      return user.governanca || (user.gts && user.gts.length > 0);
+                    }
+                    return true;
+                  })
+                  .map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setActiveTab(item.id as Tab); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl font-bold transition-all ${activeTab === item.id ? 'bg-brand-neon/10 text-brand-neon' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.03]'}`}
+                    >
+                      <item.icon size={20} />
+                      <span className="text-sm">{item.label}</span>
+                    </button>
+                  ))}
+
+                {user.governanca && (
+                  <>
+                    <div className="pt-6 px-4">
+                      <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest mb-4">GOVERNANÇA</div>
+                    </div>
+                    {[
+                      { id: 'gts_manage', label: 'Gestão de GTs', icon: Boxes },
+                      { id: 'articles_manage', label: 'Aprovar Artigos', icon: CheckSquare },
+                      { id: 'gamification', label: 'Gamificação', icon: Trophy },
+                      { id: 'checkin', label: 'Check-in', icon: ScanLine }
+                    ].map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => { setActiveTab(item.id as Tab); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl font-bold transition-all ${activeTab === item.id ? 'bg-brand-neon/10 text-brand-neon' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.03]'}`}
+                      >
+                        <item.icon size={20} />
+                        <span className="text-sm">{item.label}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </nav>
+
+              <div className="p-6 border-t border-slate-100 dark:border-white/5">
+                <button onClick={onLogout} className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-red-500/60 font-bold hover:bg-red-500/5">
+                  <LogOut size={20} />
+                  <span className="text-sm">Encerrar Sessão</span>
+                </button>
+              </div>
+            </aside>
+          </div>
+        )}
 
         <div className="p-8 max-w-7xl mx-auto">
           {notification && (
