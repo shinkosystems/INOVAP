@@ -7,10 +7,11 @@ import { GT, User } from '../types';
 interface LoginPageProps {
   onLoginSuccess: (user: any) => void;
   onBack: () => void;
+  initialIsSignUp?: boolean;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack, initialIsSignUp = false }) => {
+  const [isSignUp, setIsSignUp] = useState(initialIsSignUp);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

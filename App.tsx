@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const [previewEmpresa, setPreviewEmpresa] = useState<Empresa | null>(null);
+  const [loginInitialIsSignUp, setLoginInitialIsSignUp] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -147,7 +148,13 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentPage) {
       case Page.LOGIN:
-        return <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setCurrentPage(Page.LANDING)} />;
+        return (
+          <LoginPage
+            onLoginSuccess={handleLoginSuccess}
+            onBack={() => setCurrentPage(Page.LANDING)}
+            initialIsSignUp={loginInitialIsSignUp}
+          />
+        );
 
       case Page.DASHBOARD:
         return (
@@ -168,7 +175,7 @@ const App: React.FC = () => {
             onLogout={handleLogout}
             onViewCompany={handleViewCompany}
           />
-        ) : <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setCurrentPage(Page.LANDING)} />;
+        ) : <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setCurrentPage(Page.DASHBOARD)} initialIsSignUp={false} />;
 
       case Page.COMPANY_PUBLIC:
         if (!previewEmpresa) return null;
@@ -237,7 +244,12 @@ const App: React.FC = () => {
               onViewAll={() => handleNavigate('artigos')}
               onArticleClick={handleOpenArticle}
             />
-            <Events />
+            <Events
+              onLoginClick={(isSignUp) => {
+                setLoginInitialIsSignUp(isSignUp || false);
+                setCurrentPage(Page.LOGIN);
+              }}
+            />
 
             <section id="sobre" className="py-32 bg-brand-black relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-b from-black via-brand-green/10 to-black"></div>
