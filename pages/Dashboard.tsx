@@ -17,7 +17,7 @@ import {
   Plus,
   ChevronRight as ChevronRightIcon,
   Sun, Moon,
-  Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, Link, Quote, Eraser, Code, Undo, Redo
+  Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, Link, Quote, Eraser, Code, Undo, Redo, Shield
 } from 'lucide-react';
 import { User, GT, Artigo, Evento, Inscricao, Cargo, PontuacaoRegra, PontuacaoLog, Empresa, Tarefa, TarefaComentario } from '../types';
 import { supabase } from '../services/supabase';
@@ -136,6 +136,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     vagas: 100,
     exclusivo: false
   });
+  const [isProcessingInscription, setIsProcessingInscription] = useState<number | null>(null);
+
 
   // Gamification Edit States
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
@@ -423,6 +425,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     if (!user) return;
     const { error } = await supabase.from('inscricoes').insert([{ evento_id: evt.id, user_id: user.id, status: 'confirmado' }]);
     if (!error) { showNotification('success', 'Ingresso retirado!'); fetchData(); }
+  };
+
+  const handleInscription = async (eventId: number) => {
+    if (!user) {
+      showNotification('error', 'Você precisa estar logado para se inscrever.');
+      return;
+    }
+    setIsProcessingInscription(eventId);
+    try {
+      const { error } = await supabase.from('inscricoes').insert([{ evento_id: eventId, user_id: user.id, status: 'confirmado' }]);
+      if (error) throw error;
+      showNotification('success', 'Inscrição realizada com sucesso!');
+      fetchData(); // Re-fetch data to update tickets and event stats
+    } catch (error: any) {
+      console.error('Erro ao se inscrever:', error);
+      showNotification('error', error.message || 'Erro ao se inscrever no evento.');
+    } finally {
+      setIsProcessingInscription(null);
+    }
   };
 
   const prioritizedEvents = useMemo(() => {
@@ -1080,101 +1101,111 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                   </div>
 
                   {selectedEventDetails && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+                    <div className="fixed inset-0 z-[100] bg-white dark:bg-black animate-fade-in overflow-y-auto">
                       {(() => {
                         const isInscribed = myTickets.some(t => t.evento_id === selectedEventDetails.id);
                         return (
-                          <>
-                            <div className="absolute inset-0 bg-white/80 dark:bg-black/95 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedEventDetails(null)}></div>
-                            <div className="relative w-full max-w-6xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[90vh] animate-fade-in-up">
-                              <div className="w-full md:w-2/5 h-64 md:h-full relative overflow-hidden shrink-0">
-                                {selectedEventDetails.imagem_capa ? (
-                                  <img src={selectedEventDetails.imagem_capa} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full bg-slate-900 flex items-center justify-center text-brand-neon">
-                                    <Calendar size={80} />
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                                <div className="absolute bottom-12 left-12 right-12">
-                                  <div className="flex flex-col gap-3">
-                                    <span className="bg-brand-neon text-black px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest self-start">
-                                      {selectedEventDetails.tipo}
-                                    </span>
+                          <div className="relative min-h-screen flex flex-col md:flex-row">
+                            <div className="w-full md:w-2/5 h-64 md:h-screen sticky top-0 md:relative overflow-hidden shrink-0">
+                              {selectedEventDetails.imagem_capa ? (
+                                <img src={selectedEventDetails.imagem_capa} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-slate-900 flex items-center justify-center text-brand-neon">
+                                  <Calendar size={80} />
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-black/80 via-black/20 to-transparent"></div>
+                              <div className="absolute bottom-12 left-12 right-12 z-20">
+                                <div className="flex flex-col gap-3">
+                                  {selectedEventDetails.exclusivo && (
+                                    <div className="flex items-center gap-2 bg-brand-purple/20 backdrop-blur-md border border-brand-purple/40 text-brand-purple px-4 py-1.5 rounded-full w-fit">
+                                      <Shield size={14} className="fill-current" />
+                                      <span className="text-[10px] font-black uppercase tracking-widest">Acesso Restrito</span>
+                                    </div>
+                                  )}
+                                  <h2 className="text-4xl md:text-7xl font-black text-white leading-tight uppercase tracking-tighter shadow-black/20 drop-shadow-2xl">{selectedEventDetails.titulo}</h2>
+                                  <div className="flex flex-wrap gap-3 mt-4">
+                                    <span className="bg-brand-neon text-black px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-neon">{selectedEventDetails.tipo}</span>
                                     {isInscribed && (
-                                      <span className="bg-white/20 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest self-start border border-white/10">
-                                        Inscrito
-                                      </span>
+                                      <span className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest">Inscrito</span>
                                     )}
                                   </div>
-                                  <h1 className="text-4xl md:text-5xl font-black text-white leading-tight uppercase tracking-tighter shadow-sm">{selectedEventDetails.titulo}</h1>
                                 </div>
-                                <button onClick={() => setSelectedEventDetails(null)} className="absolute top-10 left-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md text-white hover:bg-white hover:text-black transition-all">
-                                  <X size={24} />
-                                </button>
                               </div>
+                              <button onClick={() => setSelectedEventDetails(null)} className="absolute top-10 left-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md text-white hover:bg-white hover:text-black transition-all z-50">
+                                <ArrowLeft size={24} />
+                              </button>
+                            </div>
 
-                              <div className="flex-1 flex flex-col min-w-0">
-                                <div className="flex-1 overflow-y-auto p-12 md:p-20 space-y-12">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                    <div className="space-y-4">
-                                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">O Propósito</label>
-                                      <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium">
-                                        {selectedEventDetails.descricao || "Este encontro é um marco estratégico para o ecossistema, focado em gerar conexões de alto valor entre as hélices da inovação."}
-                                      </p>
+                            <div className="flex-1 bg-white dark:bg-brand-surface p-10 md:p-24">
+                              <div className="max-w-3xl space-y-16">
+                                <section className="space-y-8">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-12 h-1 bg-brand-neon rounded-full"></div>
+                                    <h3 className="text-[11px] font-black uppercase text-slate-400 dark:text-slate-600 tracking-[0.4em]">Propósito do Evento</h3>
+                                  </div>
+                                  <div className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 font-medium leading-relaxed italic whitespace-pre-line">
+                                    {selectedEventDetails.descricao || 'Nenhuma descrição detalhada fornecida.'}
+                                  </div>
+                                </section>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                  <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-10 group hover:bg-brand-neon/5 transition-all">
+                                    <div className="w-14 h-14 bg-white dark:bg-brand-elevated rounded-2xl flex items-center justify-center text-slate-300 dark:text-slate-700 mb-6 group-hover:scale-110 group-hover:text-brand-neon transition-all">
+                                      <MapPin size={28} />
                                     </div>
-                                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 p-10 rounded-[3rem] space-y-8 border border-slate-100 dark:border-white/5">
-                                      <div className="flex items-center gap-6">
-                                        <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
-                                          <MapPin size={24} />
-                                        </div>
-                                        <div>
-                                          <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Local das Ideias</label>
-                                          <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">{selectedEventDetails.local.split(',').slice(0, 2).join(',')}</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-6">
-                                        <div className="w-14 h-14 bg-white dark:bg-black rounded-2xl flex items-center justify-center text-brand-neon shadow-sm border border-slate-100 dark:border-white/10">
-                                          <Calendar size={24} />
-                                        </div>
-                                        <div>
-                                          <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Cronograma</label>
-                                          <p className="font-black text-lg text-slate-800 dark:text-white leading-tight">
-                                            {new Date(selectedEventDetails.data_inicio).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                                          </p>
-                                        </div>
-                                      </div>
+                                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Localização das Ideias</div>
+                                    <div className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{selectedEventDetails.local}</div>
+                                  </div>
+                                  <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-10 group hover:bg-brand-purple/5 transition-all">
+                                    <div className="w-14 h-14 bg-white dark:bg-brand-elevated rounded-2xl flex items-center justify-center text-slate-300 dark:text-slate-700 mb-6 group-hover:scale-110 group-hover:text-brand-purple transition-all">
+                                      <Calendar size={28} />
+                                    </div>
+                                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Cronograma de Ação</div>
+                                    <div className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                      {new Date(selectedEventDetails.data_inicio).toLocaleString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }).replace('-feira', '')}h
                                     </div>
                                   </div>
                                 </div>
 
-                                <div className="p-12 md:p-20 pt-0 bg-white/50 dark:bg-brand-surface/20 backdrop-blur-xl border-t border-slate-100 dark:border-white/5">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-5">
-                                      <div className="flex -space-x-4">
-                                        {[1, 2, 3, 4].map(i => <div key={i} className="w-12 h-12 rounded-2xl border-4 border-white dark:border-brand-surface bg-slate-200 overflow-hidden"><UserIcon size={20} className="m-auto mt-3 text-slate-400" /></div>)}
+                                <div className="pt-16 border-t border-slate-100 dark:border-white/5 flex flex-col md:flex-row items-center justify-between gap-10">
+                                  <div className="flex -space-x-4">
+                                    {[1, 2, 3, 4].map(i => (
+                                      <div key={i} className="w-14 h-14 rounded-2xl bg-white dark:bg-brand-elevated border-4 border-white dark:border-brand-surface flex items-center justify-center text-slate-300 dark:text-slate-700">
+                                        <UsersIcon size={22} />
                                       </div>
-                                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">+{eventStats[selectedEventDetails.id] || 0} Visionários confirmados</p>
+                                    ))}
+                                    <div className="px-6 h-14 rounded-2xl bg-brand-neon/10 flex items-center gap-2 border-4 border-white dark:border-brand-surface">
+                                      <span className="text-[10px] font-black text-brand-neon uppercase tracking-tighter">+{eventStats[selectedEventDetails.id] || 0} Confirmados</span>
                                     </div>
-                                    {!myTickets.some(t => t.evento_id === selectedEventDetails.id) ? (
-                                      <button
-                                        onClick={() => handleWithdrawTicket(selectedEventDetails)}
-                                        className="group bg-brand-neon text-black px-12 py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all flex items-center gap-4 uppercase tracking-[0.2em] text-[10px]"
-                                      >
-                                        Resgatar Acesso
-                                        <Zap size={20} className="group-hover:rotate-12 transition-transform" />
-                                      </button>
-                                    ) : (
-                                      <div className="flex items-center gap-4 text-brand-green bg-brand-green/10 px-10 py-6 rounded-[2rem] border border-brand-green/20">
-                                        <CheckCircle size={20} />
-                                        <span className="font-black text-[10px] uppercase tracking-widest">Sua presença está confirmada</span>
-                                      </div>
-                                    )}
                                   </div>
+
+                                  {!isInscribed ? (
+                                    <button
+                                      onClick={() => handleInscription(selectedEventDetails.id)}
+                                      disabled={isProcessingInscription === selectedEventDetails.id}
+                                      className="w-full md:w-auto bg-slate-900 dark:bg-brand-neon text-white dark:text-black px-12 py-6 rounded-3xl font-black uppercase text-xs tracking-[0.2em] shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 group disabled:opacity-50"
+                                    >
+                                      {isProcessingInscription === selectedEventDetails.id ? (
+                                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                      ) : (
+                                        <>Garantir Minha Vaga <Ticket size={18} className="group-hover:rotate-12 transition-transform" /></>
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <div className="w-full md:w-auto px-10 py-6 bg-brand-green/10 border-2 border-brand-green/20 rounded-3xl flex items-center gap-4 text-brand-green">
+                                      <div className="w-10 h-10 rounded-xl bg-brand-green/20 flex items-center justify-center shadow-sm">
+                                        <CheckCircle size={20} className="text-brand-green" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Sua presença está confirmada</span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
-                          </>
+                          </div>
                         );
                       })()}
                     </div>

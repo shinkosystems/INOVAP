@@ -3,7 +3,7 @@ import { Empresa, Artigo } from '../../types';
 import { supabase } from '../../services/supabase';
 import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
-import { MapPin, Globe, Instagram, Linkedin, Building2, ArrowLeft, MessageCircle, FileText, ImageOff, Quote, Star, TrendingUp, Users, Share, Sun, Moon, ChevronRight } from 'lucide-react';
+import { MapPin, Globe, Instagram, Linkedin, Building2, ArrowLeft, MessageCircle, FileText, ImageOff, Quote, Star, TrendingUp, Users, Share, Sun, Moon, ChevronRight, X } from 'lucide-react';
 
 interface CompanyPublicPageProps {
     empresa: Empresa;
@@ -301,43 +301,49 @@ export const CompanyPublicPage: React.FC<CompanyPublicPageProps> = ({ empresa, o
             </section>
 
             {selectedArticle && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
-                    <div className="absolute inset-0 bg-white/80 dark:bg-black/95 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedArticle(null)}></div>
-                    <div className="relative w-full max-w-5xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[3rem] overflow-hidden shadow-2xl flex flex-col h-[90vh] animate-fade-in-up">
-                        <div className="h-48 md:h-80 relative overflow-hidden shrink-0">
+                <div className="fixed inset-0 z-[100] bg-white dark:bg-brand-surface animate-fade-in overflow-y-auto">
+                    <div className="relative min-h-screen flex flex-col">
+                        <div className="h-64 md:h-[60vh] relative overflow-hidden shrink-0">
                             <img src={selectedArticle.capa} className="w-full h-full object-cover" alt={selectedArticle.titulo} />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                            <div className="absolute bottom-8 left-8 right-8">
-                                <div className="flex gap-2 mb-4">
+                            <div className="absolute bottom-12 left-6 right-6 md:left-20 md:right-20">
+                                <div className="flex gap-2 mb-6">
                                     {selectedArticle.tags?.map((tag, idx) => (
-                                        <span key={idx} className="bg-brand-neon text-black px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                                        <span key={idx} className="bg-brand-neon text-black px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
                                             {tag}
                                         </span>
                                     ))}
                                 </div>
-                                <h1 className="text-3xl md:text-5xl font-black text-white leading-tight uppercase tracking-tighter">{selectedArticle.titulo}</h1>
+                                <h1 className="text-4xl md:text-7xl font-black text-white leading-tight uppercase tracking-tighter max-w-5xl">{selectedArticle.titulo}</h1>
                             </div>
-                            <button onClick={() => setSelectedArticle(null)} className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md text-white hover:bg-white hover:text-black transition-all">
-                                <ArrowLeft size={20} className="rotate-90 md:rotate-0" />
+                            <button
+                                onClick={() => setSelectedArticle(null)}
+                                className="absolute top-8 right-8 w-14 h-14 flex items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md text-white hover:bg-white hover:text-black transition-all z-50 group"
+                            >
+                                <X size={28} className="group-hover:rotate-90 transition-transform duration-300" />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-8 md:p-16 custom-scrollbar">
-                            <div className="max-w-3xl mx-auto space-y-10">
-                                <div className="space-y-4">
-                                    <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em]">
+
+                        <div className="flex-1 bg-white dark:bg-brand-surface px-6 md:px-20 py-20 pb-40">
+                            <div className="max-w-4xl mx-auto space-y-12">
+                                <div className="space-y-6 pb-12 border-b border-slate-100 dark:border-white/5">
+                                    <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-xs tracking-[0.4em]">
                                         Publicado em {new Date(selectedArticle.created_at).toLocaleDateString('pt-BR')} • 5 min leitura
                                     </p>
-                                    <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white italic leading-relaxed">
+                                    <h2 className="text-2xl md:text-4xl font-bold text-slate-800 dark:text-white italic leading-relaxed opacity-80">
                                         {selectedArticle.subtitulo}
                                     </h2>
                                 </div>
-                                <div className="h-0.5 w-20" style={{ backgroundColor: themeColor }}></div>
+
                                 <div
-                                    className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed space-y-6 font-medium article-content"
+                                    className="text-slate-600 dark:text-slate-300 text-xl leading-[1.8] space-y-8 font-medium article-body"
                                     dangerouslySetInnerHTML={{ __html: selectedArticle.conteudo.replace(/\n/g, '<br/>') }}
                                 />
                             </div>
                         </div>
+
+                        {/* Progress Bar (Visual only) */}
+                        <div className="fixed bottom-0 left-0 h-1.5 bg-brand-neon z-[110] transition-all duration-300 shadow-neon" style={{ width: '100%' }}></div>
                     </div>
                 </div>
             )}
