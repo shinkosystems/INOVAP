@@ -507,13 +507,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   };
 
   const handleDeleteGt = async (gtId: number) => {
-    const { error } = await supabase.from('gts').delete().eq('id', gtId);
-    if (!error) {
-      showNotification('success', 'GT Removido!');
+    const { data, error } = await supabase.from('gts').delete().eq('id', gtId).select();
+    if (error) {
+      showNotification('error', 'Erro ao remover GT: ' + error.message);
+    } else if (!data || data.length === 0) {
+      showNotification('error', 'Falha na exclusão. Verifique as permissões de RLS no banco de dados para a tabela gts.');
+    } else {
+      showNotification('success', 'GT Removido com sucesso!');
       setSelectedGtForManagement(null);
       fetchData();
-    } else {
-      showNotification('error', 'Erro ao remover GT. Verifique dependências.');
     }
   };
 
