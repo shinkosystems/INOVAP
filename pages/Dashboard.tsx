@@ -2023,7 +2023,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedGtForManagement(null)}></div>
                       <div className="relative w-full max-w-6xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] p-12 md:p-20 max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in-up">
                         <div className="absolute top-12 right-12 flex gap-4">
-                          <button onClick={() => { if (window.confirm('Tem certeza que deseja apagar este GT de forma permanente?')) handleDeleteGt(selectedGtForManagement.id) }} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Apagar GT"><Trash2 size={24} /></button>
+                          <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm('Tem certeza que deseja apagar este GT de forma permanente?')) handleDeleteGt(selectedGtForManagement.id) }} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Apagar GT"><Trash2 size={24} /></button>
                           <button onClick={() => setSelectedGtForManagement(null)} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm"><X size={28} /></button>
                         </div>
 
