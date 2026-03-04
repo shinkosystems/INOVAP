@@ -202,16 +202,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack, in
                     ))}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/5 cursor-pointer hover:bg-white/10 transition-colors" onClick={() => setIsGovernanca(!isGovernanca)}>
-                  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isGovernanca ? 'bg-brand-neon border-brand-neon' : 'border-slate-500'}`}>
-                    {isGovernanca && <Shield size={12} className="text-black" />}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-sm font-medium text-white block">Sou da Governança</span>
-                    <span className="text-xs text-slate-500">Marque se você faz parte do comitê gestor.</span>
-                  </div>
-                </div>
               </div>
             )}
 

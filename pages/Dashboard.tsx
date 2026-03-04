@@ -223,9 +223,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const execEditorCommand = (command: string, value?: string) => {
     editorRef.current?.focus();
     document.execCommand(command, false, value);
-    if (editorRef.current) {
-      setNewArticleData(prev => ({ ...prev, conteudo: editorRef.current?.innerHTML || '' }));
-    }
   };
 
   const handleInsertLink = () => {
@@ -378,7 +375,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const handleSaveArticle = async () => {
     if (!newArticleData.titulo || !user) return;
     setIsProcessingAction(true);
-    const { error } = await supabase.from('artigos').insert([{ ...newArticleData, autor: user.uuid, aprovado: false }]);
+    const finalConteudo = editorRef.current?.innerHTML || '';
+    const { error } = await supabase.from('artigos').insert([{ ...newArticleData, conteudo: finalConteudo, autor: user.uuid, aprovado: false }]);
     if (!error) { showNotification('success', 'Enviado para revisão!'); setIsCreatingArticle(false); fetchData(); }
     setIsProcessingAction(false);
   };
@@ -508,6 +506,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     if (!error) { showNotification('success', 'GT Criado!'); setIsAddingGt(false); setNewGtName(''); fetchData(); }
   };
 
+  const handleDeleteGt = async (gtId: number) => {
+    const { error } = await supabase.from('gts').delete().eq('id', gtId);
+    if (!error) {
+      showNotification('success', 'GT Removido!');
+      setSelectedGtForManagement(null);
+      fetchData();
+    } else {
+      showNotification('error', 'Erro ao remover GT. Verifique dependências.');
+    }
+  };
+
   const handleAddMemberToGt = async (target: User, gtId?: number) => {
     const id = gtId || selectedGtForManagement?.id;
     if (!id) return;
@@ -520,6 +529,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     if (!id) return;
     const { error = null } = await supabase.from('users').update({ gts: target.gts?.filter(g => g !== id) }).eq('id', target.id);
     if (!error) { showNotification('success', 'Removido!'); fetchData(); }
+  };
+
+  const handleToggleUserGovernanca = async (target: User) => {
+    const newValue = !target.governanca;
+    const { error } = await supabase.from('users').update({ governanca: newValue }).eq('id', target.id);
+    if (!error) {
+      showNotification('success', newValue ? 'Promovido à Governança' : 'Removido da Governança');
+      fetchData();
+      if (selectedMemberForGts && selectedMemberForGts.id === target.id) {
+        setSelectedMemberForGts({ ...selectedMemberForGts, governanca: newValue });
+      }
+    }
   };
 
   // Gamification Actions
@@ -853,29 +874,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                 <div className="space-y-12">
                   <div className="flex justify-between items-end">
                     <div>
-                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><FileText className="text-brand-neon" size={40} /> Meus Artigos</h2>
+                      <h2 className="text-4xl font-black tracking-tight flex items-center gap-4 text-slate-900 dark:text-white"><FileText className="text-brand-neon" size={40} /> {isCreatingArticle ? 'Novo Artigo' : 'Meus Artigos'}</h2>
                       <p className="text-slate-500 dark:text-slate-500 mt-2 font-medium">Compartilhe conhecimento com o ecossistema.</p>
                     </div>
-                    <button onClick={() => setIsCreatingArticle(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-black hover:text-white dark:hover:bg-white transition-all shadow-lg shadow-brand-neon/20"><PlusCircle size={20} /> ESCREVER ARTIGO</button>
+                    {isCreatingArticle ? (
+                      <button onClick={() => setIsCreatingArticle(false)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white dark:bg-brand-elevated text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm border border-slate-200 dark:border-white/10 relative z-10">
+                        <X size={24} />
+                      </button>
+                    ) : (
+                      <button onClick={() => setIsCreatingArticle(true)} className="bg-brand-neon text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-black hover:text-white dark:hover:bg-white transition-all shadow-lg shadow-brand-neon/20"><PlusCircle size={20} /> ESCREVER ARTIGO</button>
+                    )}
                   </div>
 
                   {isCreatingArticle ? (
-                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 border border-transparent rounded-[4rem] p-12 md:p-20 space-y-12 animate-fade-in relative overflow-hidden">
+                    <div className="bg-slate-50/50 dark:bg-brand-surface/40 border border-transparent rounded-[3rem] p-8 md:p-12 animate-fade-in relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-neon via-brand-green to-brand-neon"></div>
 
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon">
-                            <FileText size={24} />
-                          </div>
-                          <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Atelier de Escrita</h3>
-                        </div>
-                        <button onClick={() => setIsCreatingArticle(false)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all shadow-sm">
-                          <X size={24} />
-                        </button>
-                      </div>
-
-                      <div className="space-y-8 max-w-5xl mx-auto">
+                      <div className="space-y-8 max-w-5xl mx-auto pt-2">
                         <div className="space-y-4">
                           <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Título da Obra</label>
                           <input
@@ -970,7 +985,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                 ref={editorRef}
                                 contentEditable
                                 data-placeholder="Comece a escrever sua obra-prima aqui..."
-                                onInput={(e) => setNewArticleData(prev => ({ ...prev, conteudo: e.currentTarget.innerHTML }))}
+                                onInput={(e) => {
+                                  const html = e.currentTarget.innerHTML;
+                                  setNewArticleData(prev => ({ ...prev, conteudo: html }));
+                                }}
                                 className="flex-1 min-h-[500px] max-h-[700px] overflow-y-auto p-12 outline-none prose dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 selection:bg-brand-neon/30 focus:shadow-inner"
                               />
                             </div>
@@ -2004,7 +2022,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
                       <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedGtForManagement(null)}></div>
                       <div className="relative w-full max-w-6xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4.5rem] p-12 md:p-20 max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in-up">
-                        <button onClick={() => setSelectedGtForManagement(null)} className="absolute top-12 right-12 w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all"><X size={28} /></button>
+                        <div className="absolute top-12 right-12 flex gap-4">
+                          <button onClick={() => { if (window.confirm('Tem certeza que deseja apagar este GT de forma permanente?')) handleDeleteGt(selectedGtForManagement.id) }} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Apagar GT"><Trash2 size={24} /></button>
+                          <button onClick={() => setSelectedGtForManagement(null)} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm"><X size={28} /></button>
+                        </div>
 
                         <div className="flex flex-col md:flex-row md:items-center gap-10 mb-20">
                           <div className="w-24 h-24 bg-brand-neon text-black rounded-[2.5rem] flex items-center justify-center shadow-neon border-4 border-white dark:border-brand-surface"><Boxes size={48} /></div>
@@ -2342,6 +2363,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         </div>
 
                         <div className="space-y-8">
+                          <button
+                            onClick={() => handleToggleUserGovernanca(selectedMemberForGts)}
+                            className={`w-full flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all ${selectedMemberForGts.governanca ? 'bg-brand-neon/10 border-brand-neon/40' : 'bg-slate-50 dark:bg-brand-elevated border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <ShieldCheck size={20} className={selectedMemberForGts.governanca ? 'text-brand-neon' : 'text-slate-400 dark:text-slate-600'} />
+                              <div className="flex flex-col text-left">
+                                <span className={`text-[11px] font-black uppercase tracking-tight ${selectedMemberForGts.governanca ? 'text-brand-neon' : 'text-slate-600 dark:text-slate-300'}`}>
+                                  Acesso à Governança
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-medium">Tem poderes em toda a plataforma</span>
+                              </div>
+                            </div>
+                            <div className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${selectedMemberForGts.governanca ? 'bg-brand-neon' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${selectedMemberForGts.governanca ? 'translate-x-6' : ''}`} />
+                            </div>
+                          </button>
+
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">Células de Atuação</h4>
                             <span className="text-[10px] font-bold text-brand-neon">{(selectedMemberForGts.gts || []).length} GTs</span>

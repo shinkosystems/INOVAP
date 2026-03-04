@@ -299,6 +299,7 @@ const App: React.FC = () => {
   return (
     <>
       {renderContent()}
+      {(currentPage !== Page.LOGIN && currentPage !== Page.LANDING) && <Footer />}
     </>
   );
 };
