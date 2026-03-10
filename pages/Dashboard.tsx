@@ -467,11 +467,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   };
 
   const startScanner = () => setIsScanning(true);
-  const stopScanner = () => {
+
+  const stopScanner = async () => {
     if (scannerRef.current) {
-      scannerRef.current.stop().then(() => {
-        scannerRef.current?.clear();
-      }).catch((e: any) => console.log('Scanner stop info:', e));
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+      } catch (e) {
+        console.log('Scanner stop info:', e);
+      }
       scannerRef.current = null;
     }
     setIsScanning(false);
@@ -479,15 +483,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   useEffect(() => {
     let isMounted = true;
+    let isProcessing = false;
+
     if (isScanning && activeTab === 'checkin') {
       const scanner = new Html5Qrcode("reader");
       scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
         (text) => {
-          if (isMounted) {
+          if (isMounted && !isProcessing) {
+            isProcessing = true;
             handleCheckin(text);
-            stopScanner();
+            stopScanner().catch(e => console.error(e));
           }
         },
         () => { }
@@ -497,6 +504,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       });
       scannerRef.current = scanner;
     }
+
     return () => {
       isMounted = false;
       if (scannerRef.current) {
