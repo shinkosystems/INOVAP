@@ -520,9 +520,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       showNotification('error', 'Preencha os campos obrigatórios.');
       return;
     }
-    const { error } = await supabase.from('eventos').insert([
-      { ...newEventData, criado_por: user.uuid }
-    ]);
+
+    const payload: any = { ...newEventData, criado_por: user.uuid };
+    if (!payload.data_fim) delete payload.data_fim;
+    if (!payload.imagem_capa) delete payload.imagem_capa;
+
+    const { error } = await supabase.from('eventos').insert([payload]);
     if (!error) {
       showNotification('success', 'Evento criado com sucesso!');
       setIsAddingEvent(false);
