@@ -453,21 +453,57 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   // Checkin Scanner
   const handleCheckin = async (id: string) => {
-    const { data, error } = await supabase.from('inscricoes').update({ status: 'checkin_realizado', checkin_at: new Date().toISOString() }).eq('id', id).select('*, user:users(nome)').single();
-    if (!error) showNotification('success', `Check-in: ${data.user.nome}`);
-    else showNotification('error', 'Código de ingresso inválido ou já utilizado.');
+    try {
+      const { data, error } = await supabase.from('inscricoes').update({ status: 'checkin_realizado', checkin_at: new Date().toISOString() }).eq('id', id).select('*, user:users(nome)').single();
+      if (!error && data?.user) {
+        const nome = Array.isArray(data.user) ? data.user[0]?.nome : data.user.nome;
+        showNotification('success', `Check-in: ${nome || 'Validado'}`);
+      } else {
+        showNotification('error', 'Código de ingresso inválido ou já utilizado.');
+      }
+    } catch (e) {
+      showNotification('error', 'Erro na leitura do QR Code.');
+    }
   };
 
   const startScanner = () => setIsScanning(true);
-  const stopScanner = () => { if (scannerRef.current) scannerRef.current.stop(); setIsScanning(false); };
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current?.clear();
+      }).catch((e: any) => console.log('Scanner stop info:', e));
+      scannerRef.current = null;
+    }
+    setIsScanning(false);
+  };
 
   useEffect(() => {
+    let isMounted = true;
     if (isScanning && activeTab === 'checkin') {
       const scanner = new Html5Qrcode("reader");
-      scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => { handleCheckin(text); stopScanner(); }, () => { });
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        (text) => {
+          if (isMounted) {
+            handleCheckin(text);
+            stopScanner();
+          }
+        },
+        () => { }
+      ).catch((e: any) => {
+        console.error('Falha scanner:', e);
+        if (isMounted) showNotification('error', 'Câmera inacessível ou negada.');
+      });
       scannerRef.current = scanner;
     }
-    return () => { if (scannerRef.current) scannerRef.current.stop(); };
+    return () => {
+      isMounted = false;
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch((e: any) => console.log('Scanner cleanup:', e));
+        scannerRef.current = null;
+      }
+    };
   }, [isScanning, activeTab]);
 
   // Agenda Actions
