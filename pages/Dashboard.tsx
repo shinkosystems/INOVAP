@@ -539,7 +539,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       });
       fetchData();
     } else {
-      showNotification('error', 'Erro ao criar evento.');
+      console.error('Erro ao criar evento =', error);
+      showNotification('error', `Erro ao criar evento: ${error.message}`);
     }
   };
 
