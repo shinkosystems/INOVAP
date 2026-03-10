@@ -166,8 +166,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     setTimeout(() => setNotification(null), 4000);
   }, []);
 
+  const lastFetchRef = useRef<number>(0);
   const fetchData = useCallback(async (isInitial = false) => {
     if (!user) return;
+
+    // Antigravity optimization: Prevent too frequent fetches (throttle)
+    const now = Date.now();
+    if (!isInitial && now - lastFetchRef.current < 2000) return;
+    lastFetchRef.current = now;
+
     if (isInitial) setLoading(true);
     try {
       // 1. Fetch core data needed for initial view
@@ -188,10 +195,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (logsRes.data) setLogs(logsRes.data as any);
       if (empresasRes.data) setEmpresas(empresasRes.data);
 
-      // 2. Fetch tab-specific data in parallel but separately to avoid blocking core UI
+      // 2. Fetch tab-specific data in parallel
       const [eventsRes, ticketsRes, articlesRes, tasksRes] = await Promise.all([
         supabase.from('eventos').select('*').order('data_inicio', { ascending: true }),
-        supabase.from('inscricoes').select('*, evento:eventos(*)').eq('user_id', user.id),
+        supabase.from('inscricoes').select('*, evento:eventos(*)').eq('user_id', user.id || 0),
         supabase.from('artigos').select('*').eq('autor', user.uuid).order('created_at', { ascending: false }),
         supabase.from('tarefas').select('*, responsavel:users(id, nome, avatar), gt:gts(id, gt)').order('prazo', { ascending: true })
       ]);
@@ -201,34 +208,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       if (articlesRes.data) setMyArticles(articlesRes.data);
       if (tasksRes.data) setTasks(tasksRes.data as any);
 
-      // 3. Fetch stats only if needed, and optimize
-      if (eventsRes.data && eventsRes.data.length > 0) {
-        // Optimized stats fetching - only for current events
-        const { data: counts } = await supabase.rpc('get_event_stats');
-        // Fallback if RPC doesn't exist:
-        if (!counts) {
-          const { data: ins } = await supabase.from('inscricoes').select('evento_id');
-          if (ins) {
-            const stats: Record<number, number> = {};
-            ins.forEach(i => { stats[i.evento_id] = (stats[i.evento_id] || 0) + 1; });
-            setEventStats(stats);
-          }
-        } else {
-          const stats: Record<number, number> = {};
-          counts.forEach((c: any) => { stats[c.evento_id] = c.count; });
-          setEventStats(stats);
-        }
+      // 3. Stats
+      const { data: ins } = await supabase.from('inscricoes').select('evento_id');
+      if (ins) {
+        const stats: Record<number, number> = {};
+        ins.forEach(i => { stats[i.evento_id] = (stats[i.evento_id] || 0) + 1; });
+        setEventStats(stats);
       }
 
       if (user.governanca) {
-        // Articles for review only if admin
         supabase.from('artigos').select('*').order('created_at', { ascending: false }).then(({ data }) => {
           if (data) setAllArticles(data);
         });
       }
     } catch (e) {
       console.error(e);
-      showNotification('error', 'Erro ao sincronizar dados.');
+      if (isInitial) showNotification('error', 'Erro ao sincronizar dados.');
     } finally {
       if (isInitial) setLoading(false);
     }
@@ -445,18 +440,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   const handleInscription = async (eventId: number) => {
     if (!user) {
-      showNotification('error', 'Você precisa estar logado para se inscrever.');
+      showNotification('error', 'Você precisa estar logado.');
       return;
     }
+
+    if (!user.id) {
+      showNotification('error', 'Seu perfil ainda não foi sincronizado. Por favor, saia e entre novamente.');
+      return;
+    }
+
     setIsProcessingInscription(eventId);
     try {
-      const { error } = await supabase.from('inscricoes').insert([{ evento_id: eventId, user_id: user.id, status: 'confirmado' }]);
-      if (error) throw error;
-      showNotification('success', 'Inscrição realizada com sucesso!');
-      fetchData(); // Re-fetch data to update tickets and event stats
+      const { error } = await supabase.from('inscricoes').insert([{
+        evento_id: eventId,
+        user_id: user.id,
+        status: 'confirmado'
+      }]);
+
+      if (error) {
+        if (error.code === '23505') {
+          showNotification('error', 'Você já está inscrito neste evento.');
+        } else {
+          throw error;
+        }
+      } else {
+        showNotification('success', 'Inscrição realizada com sucesso!');
+        // Optimistic update
+        setMyTickets(prev => [...prev, { evento_id: eventId, user_id: user.id, status: 'confirmado' } as any]);
+        setEventStats(prev => ({ ...prev, [eventId]: (prev[eventId] || 0) + 1 }));
+        fetchData();
+      }
     } catch (error: any) {
       console.error('Erro ao se inscrever:', error);
-      showNotification('error', error.message || 'Erro ao se inscrever no evento.');
+      showNotification('error', 'Erro ao se inscrever. Tente novamente.');
     } finally {
       setIsProcessingInscription(null);
     }
