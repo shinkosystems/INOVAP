@@ -166,58 +166,76 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     setTimeout(() => setNotification(null), 4000);
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isInitial = false) => {
     if (!user) return;
-    setLoading(true);
+    if (isInitial) setLoading(true);
     try {
-      const [gtsRes, usersRes, eventsRes, ticketsRes, articlesRes, rulesRes, logsRes, inscriptionsCountRes, tasksRes, empresasRes] = await Promise.all([
+      // 1. Fetch core data needed for initial view
+      const [gtsRes, usersRes, rulesRes, logsRes, empresasRes] = await Promise.all([
         supabase.from('gts').select('*').order('gt'),
-        supabase.from('users').select('*').order('pontos', { ascending: false }),
-        supabase.from('eventos').select('*').order('data_inicio', { ascending: true }),
-        supabase.from('inscricoes').select('*, evento:eventos(*)').eq('user_id', user.id),
-        supabase.from('artigos').select('*').eq('autor', user.uuid).order('created_at', { ascending: false }),
+        supabase.from('users').select('id, nome, pontos, avatar, cargo, gts, email').order('pontos', { ascending: false }),
         supabase.from('pontuacao_regras').select('*').order('valor', { ascending: false }),
         supabase.from('pontuacao_logs').select('*').order('created_at', { ascending: false }).limit(20),
-        supabase.from('inscricoes').select('evento_id'),
-        supabase.from('tarefas').select('*, responsavel:users(*), gt:gts(*)').order('prazo', { ascending: true }),
         supabase.from('empresas').select('*')
       ]);
 
       if (gtsRes.data) setGts(gtsRes.data);
       if (usersRes.data) {
-        setMembers(usersRes.data);
-        setRanking(usersRes.data);
+        setMembers(usersRes.data as any);
+        setRanking(usersRes.data as any);
       }
+      if (rulesRes.data) setRules(rulesRes.data);
+      if (logsRes.data) setLogs(logsRes.data as any);
+      if (empresasRes.data) setEmpresas(empresasRes.data);
+
+      // 2. Fetch tab-specific data in parallel but separately to avoid blocking core UI
+      const [eventsRes, ticketsRes, articlesRes, tasksRes] = await Promise.all([
+        supabase.from('eventos').select('*').order('data_inicio', { ascending: true }),
+        supabase.from('inscricoes').select('*, evento:eventos(*)').eq('user_id', user.id),
+        supabase.from('artigos').select('*').eq('autor', user.uuid).order('created_at', { ascending: false }),
+        supabase.from('tarefas').select('*, responsavel:users(id, nome, avatar), gt:gts(id, gt)').order('prazo', { ascending: true })
+      ]);
+
       if (eventsRes.data) setEvents(eventsRes.data);
       if (ticketsRes.data) setMyTickets(ticketsRes.data as any);
       if (articlesRes.data) setMyArticles(articlesRes.data);
-      if (rulesRes.data) setRules(rulesRes.data);
-      if (logsRes.data) setLogs(logsRes.data as any);
       if (tasksRes.data) setTasks(tasksRes.data as any);
-      if (empresasRes.data) setEmpresas(empresasRes.data);
 
-      if (inscriptionsCountRes.data) {
-        const stats: Record<number, number> = {};
-        inscriptionsCountRes.data.forEach(ins => {
-          stats[ins.evento_id] = (stats[ins.evento_id] || 0) + 1;
-        });
-        setEventStats(stats);
+      // 3. Fetch stats only if needed, and optimize
+      if (eventsRes.data && eventsRes.data.length > 0) {
+        // Optimized stats fetching - only for current events
+        const { data: counts } = await supabase.rpc('get_event_stats');
+        // Fallback if RPC doesn't exist:
+        if (!counts) {
+          const { data: ins } = await supabase.from('inscricoes').select('evento_id');
+          if (ins) {
+            const stats: Record<number, number> = {};
+            ins.forEach(i => { stats[i.evento_id] = (stats[i.evento_id] || 0) + 1; });
+            setEventStats(stats);
+          }
+        } else {
+          const stats: Record<number, number> = {};
+          counts.forEach((c: any) => { stats[c.evento_id] = c.count; });
+          setEventStats(stats);
+        }
       }
 
       if (user.governanca) {
-        const { data: allArts } = await supabase.from('artigos').select('*').order('created_at', { ascending: false });
-        if (allArts) setAllArticles(allArts);
+        // Articles for review only if admin
+        supabase.from('artigos').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+          if (data) setAllArticles(data);
+        });
       }
     } catch (e) {
       console.error(e);
       showNotification('error', 'Erro ao sincronizar dados.');
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   }, [user, showNotification]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, [fetchData]);
 
   const execEditorCommand = (command: string, value?: string) => {
@@ -521,7 +539,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       return;
     }
 
-    const payload: any = { ...newEventData, criado_por: user.uuid };
+    const payload: any = {
+      ...newEventData,
+      criado_por: user.uuid,
+      descricao: newEventData.descricao || '' // Garantir que não seja nulo
+    };
     if (!payload.data_fim) delete payload.data_fim;
     if (!payload.imagem_capa) delete payload.imagem_capa;
 
