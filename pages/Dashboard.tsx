@@ -167,12 +167,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   }, []);
 
   const lastFetchRef = useRef<number>(0);
-  const fetchData = useCallback(async (isInitial = false) => {
+  const fetchData = useCallback(async (isInitial = false, force = false) => {
     if (!user) return;
 
     // Antigravity optimization: Prevent too frequent fetches (throttle)
     const now = Date.now();
-    if (!isInitial && now - lastFetchRef.current < 2000) return;
+    if (!isInitial && !force && now - lastFetchRef.current < 2000) return;
     lastFetchRef.current = now;
 
     if (isInitial) setLoading(true);
@@ -217,9 +217,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       }
 
       if (user.governanca) {
-        supabase.from('artigos').select('*').order('created_at', { ascending: false }).then(({ data }) => {
-          if (data) setAllArticles(data);
-        });
+        const { data: allArts } = await supabase.from('artigos').select('*').order('created_at', { ascending: false });
+        if (allArts) {
+          setAllArticles(allArts);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -379,10 +380,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
   // Article Actions
   const handleApproveArticle = async (id: number) => {
-    setIsProcessingAction(true);
-    const { error } = await supabase.from('artigos').update({ aprovado: true }).eq('id', id);
-    if (!error) { showNotification('success', 'Aprovado!'); setSelectedArticleForReview(null); fetchData(); }
-    setIsProcessingAction(false);
+    try {
+      setIsProcessingAction(true);
+      const { error } = await supabase.from('artigos').update({ aprovado: true }).eq('id', id);
+
+      if (error) {
+        console.error('Erro ao aprovar artigo:', error);
+        showNotification('error', 'Falha na validação: ' + error.message);
+      } else {
+        showNotification('success', 'Conhecimento Validado!');
+        setSelectedArticleForReview(null);
+        await fetchData(false, true);
+      }
+    } catch (err: any) {
+      console.error('Exception ao aprovar artigo:', err);
+      showNotification('error', 'Ocorreu um erro inesperado.');
+    } finally {
+      setIsProcessingAction(false);
+    }
   };
 
   const handleSaveArticle = async () => {
