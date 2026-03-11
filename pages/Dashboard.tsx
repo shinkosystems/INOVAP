@@ -501,17 +501,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   }, [events, filterMonth, filterYear]);
 
   // Checkin Scanner
-  const handleCheckin = async (id: string) => {
+  const handleCheckin = async (qrValue: string) => {
     try {
-      const { data, error } = await supabase.from('inscricoes').update({ status: 'checkin_realizado', checkin_at: new Date().toISOString() }).eq('id', id).select('*, user:users(nome)').single();
-      if (!error && data?.user) {
-        const nome = Array.isArray(data.user) ? data.user[0]?.nome : data.user.nome;
-        showNotification('success', `Check-in: ${nome || 'Validado'}`);
+      // 1. Extrair ID (suporta prefixo ou ID direto)
+      const id = qrValue.includes('INOVAP-TICKET-')
+        ? qrValue.split('INOVAP-TICKET-')[1]
+        : qrValue;
+
+      // 2. Verificar existência e status atual
+      const { data: ticket, error: fetchError } = await supabase
+        .from('inscricoes')
+        .select('*, user:users(nome)')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !ticket) {
+        showNotification('error', 'Ingresso inválido ou não encontrado.');
+        return;
+      }
+
+      if (ticket.status === 'checkin_realizado') {
+        const nome = ticket.user?.nome || 'Membro';
+        showNotification('error', `Este ingresso já foi validado para ${nome}.`);
+        return;
+      }
+
+      // 3. Realizar o Check-in
+      const { error: updateError } = await supabase
+        .from('inscricoes')
+        .update({
+          status: 'checkin_realizado',
+          checkin_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        showNotification('error', 'Falha ao registrar check-in.');
       } else {
-        showNotification('error', 'Código de ingresso inválido ou já utilizado.');
+        const nome = ticket.user?.nome || 'Membro';
+        showNotification('success', `Check-in realizado: ${nome}`);
+        fetchData(false, true); // Atualiza os logs de impacto
       }
     } catch (e) {
-      showNotification('error', 'Erro na leitura do QR Code.');
+      console.error('Checkin error:', e);
+      showNotification('error', 'Erro no processamento do QR Code.');
     }
   };
 
@@ -1532,9 +1565,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl" onClick={() => setSelectedTicketForQr(null)}></div>
                       <div className="relative w-full max-w-md bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 flex flex-col items-center animate-fade-in-up">
                         <button onClick={() => setSelectedTicketForQr(null)} className="absolute top-8 right-8 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={28} /></button>
-                        <h3 className="text-3xl font-black text-center mb-10 text-slate-900 dark:text-white">{selectedTicketForQr.evento?.titulo}</h3>
-                        <div className="bg-white p-6 rounded-[2.5rem] mb-10 border border-slate-200 dark:border-none shadow-xl"><QRCode value={selectedTicketForQr.id} size={250} /></div>
-                        <p className="text-slate-500 dark:text-slate-500 text-center text-sm font-medium">Apresente este código no check-in do evento.</p>
+                        <h3 className="text-3xl font-black text-center mb-10 text-slate-900 dark:text-white leading-tight uppercase tracking-tighter">{selectedTicketForQr.evento?.titulo}</h3>
+                        <div className="bg-white p-6 rounded-[3rem] mb-10 border border-slate-200 dark:border-none shadow-2xl scale-105 transition-transform duration-500 hover:scale-110">
+                          <QRCode
+                            value={`INOVAP-TICKET-${selectedTicketForQr.id}`}
+                            size={250}
+                            level="H"
+                          />
+                        </div>
+                        <div className="text-center space-y-2">
+                          <p className="text-slate-500 dark:text-slate-500 text-sm font-medium">Apresente este código no check-in do evento.</p>
+                          <p className="text-[10px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-[0.4em]">ID: {selectedTicketForQr.id}</p>
+                        </div>
                       </div>
                     </div>
                   )}
