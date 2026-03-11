@@ -2443,9 +2443,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                               setSelectedMemberForGts(m);
                             } else if (memberCompany) {
                               onViewCompany(memberCompany);
+                            } else {
+                              setSelectedMemberForGts(m);
                             }
                           }}
-                          className={`bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-8 flex items-center gap-6 group hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden ${(user?.governanca || memberCompany) ? 'cursor-pointer' : ''}`}
+                          className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-8 flex items-center gap-6 group hover:bg-white dark:hover:bg-brand-elevated transition-all border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden cursor-pointer"
                         >
                           {/* Decorative Background Element */}
                           <div className="absolute top-0 right-0 w-32 h-32 bg-brand-neon/5 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
@@ -2488,7 +2490,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                   </div>
 
                   {/* Modal de Gestão de Membro e Seus GTs - UI3.0 Borderless */}
-                  {selectedMemberForGts && user?.governanca && (
+                  {selectedMemberForGts && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
                       <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl animate-fade-in" onClick={() => setSelectedMemberForGts(null)}></div>
                       <div className="relative w-full max-w-2xl bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[4rem] p-12 md:p-16 shadow-2xl animate-fade-in-up">
@@ -2508,23 +2510,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         </div>
 
                         <div className="space-y-8">
-                          <button
-                            onClick={() => handleToggleUserGovernanca(selectedMemberForGts)}
-                            className={`w-full flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all ${selectedMemberForGts.governanca ? 'bg-brand-neon/10 border-brand-neon/40' : 'bg-slate-50 dark:bg-brand-elevated border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <ShieldCheck size={20} className={selectedMemberForGts.governanca ? 'text-brand-neon' : 'text-slate-400 dark:text-slate-600'} />
-                              <div className="flex flex-col text-left">
-                                <span className={`text-[11px] font-black uppercase tracking-tight ${selectedMemberForGts.governanca ? 'text-brand-neon' : 'text-slate-600 dark:text-slate-300'}`}>
-                                  Acesso à Governança
-                                </span>
-                                <span className="text-[9px] text-slate-500 font-medium">Tem poderes em toda a plataforma</span>
+                          {user?.governanca && (
+                            <button
+                              onClick={() => handleToggleUserGovernanca(selectedMemberForGts)}
+                              className={`w-full flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all ${selectedMemberForGts.governanca ? 'bg-brand-neon/10 border-brand-neon/40' : 'bg-slate-50 dark:bg-brand-elevated border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <ShieldCheck size={20} className={selectedMemberForGts.governanca ? 'text-brand-neon' : 'text-slate-400 dark:text-slate-600'} />
+                                <div className="flex flex-col text-left">
+                                  <span className={`text-[11px] font-black uppercase tracking-tight ${selectedMemberForGts.governanca ? 'text-brand-neon' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    Acesso à Governança
+                                  </span>
+                                  <span className="text-[9px] text-slate-500 font-medium">Tem poderes em toda a plataforma</span>
+                                </div>
                               </div>
-                            </div>
-                            <div className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${selectedMemberForGts.governanca ? 'bg-brand-neon' : 'bg-slate-300 dark:bg-slate-700'}`}>
-                              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${selectedMemberForGts.governanca ? 'translate-x-6' : ''}`} />
-                            </div>
-                          </button>
+                              <div className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${selectedMemberForGts.governanca ? 'bg-brand-neon' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${selectedMemberForGts.governanca ? 'translate-x-6' : ''}`} />
+                              </div>
+                            </button>
+                          )}
 
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">Células de Atuação</h4>
@@ -2532,24 +2536,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                            {gts.map(gt => {
-                              const isMember = selectedMemberForGts.gts?.includes(gt.id);
-                              return (
-                                <button
+                            {user?.governanca ? (
+                              gts.map(gt => {
+                                const isMember = selectedMemberForGts.gts?.includes(gt.id);
+                                return (
+                                  <button
+                                    key={gt.id}
+                                    onClick={() => isMember ? handleRemoveMemberFromGt(selectedMemberForGts, gt.id) : handleAddMemberToGt(selectedMemberForGts, gt.id)}
+                                    className={`flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all group/btn ${isMember ? 'bg-brand-neon/10 border-brand-neon/40 text-brand-neon' : 'bg-slate-50 dark:bg-brand-elevated border-transparent text-slate-500 dark:text-slate-400 hover:border-slate-200 dark:hover:border-white/10'}`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <Boxes size={18} className={isMember ? 'text-brand-neon' : 'text-slate-400 dark:text-slate-600'} />
+                                      <span className="text-[11px] font-black uppercase tracking-tight truncate max-w-[120px]">{gt.gt}</span>
+                                    </div>
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isMember ? 'bg-brand-neon text-black' : 'bg-white dark:bg-brand-surface text-slate-200 dark:text-slate-800'}`}>
+                                      {isMember ? <CheckSquare size={14} /> : <Plus size={14} />}
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              gts.filter(gt => selectedMemberForGts.gts?.includes(gt.id)).map(gt => (
+                                <div
                                   key={gt.id}
-                                  onClick={() => isMember ? handleRemoveMemberFromGt(selectedMemberForGts, gt.id) : handleAddMemberToGt(selectedMemberForGts, gt.id)}
-                                  className={`flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all group/btn ${isMember ? 'bg-brand-neon/10 border-brand-neon/40 text-brand-neon' : 'bg-slate-50 dark:bg-brand-elevated border-transparent text-slate-500 dark:text-slate-400 hover:border-slate-200 dark:hover:border-white/10'}`}
+                                  className="flex items-center gap-3 p-5 rounded-[2rem] bg-brand-neon/5 border-2 border-brand-neon/20 text-brand-neon"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <Boxes size={18} className={isMember ? 'text-brand-neon' : 'text-slate-400 dark:text-slate-600'} />
-                                    <span className="text-[11px] font-black uppercase tracking-tight truncate max-w-[120px]">{gt.gt}</span>
-                                  </div>
-                                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isMember ? 'bg-brand-neon text-black' : 'bg-white dark:bg-brand-surface text-slate-200 dark:text-slate-800'}`}>
-                                    {isMember ? <CheckSquare size={14} /> : <Plus size={14} />}
-                                  </div>
-                                </button>
-                              );
-                            })}
+                                  <Boxes size={18} />
+                                  <span className="text-[11px] font-black uppercase tracking-tight truncate">{gt.gt}</span>
+                                </div>
+                              ))
+                            )}
+                            {(!selectedMemberForGts.gts || selectedMemberForGts.gts.length === 0) && !user?.governanca && (
+                              <div className="col-span-full py-6 text-center opacity-40">
+                                <p className="text-[9px] font-black uppercase tracking-widest">Nenhuma unidade vinculada</p>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -2558,7 +2579,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             onClick={() => setSelectedMemberForGts(null)}
                             className="w-full bg-slate-900 dark:bg-white text-white dark:text-black py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl hover:scale-[1.02] transition-all"
                           >
-                            Finalizar Gestão
+                            {user?.governanca ? 'Finalizar Gestão' : 'Fechar Perfil'}
                           </button>
                         </div>
                       </div>
