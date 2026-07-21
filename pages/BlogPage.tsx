@@ -4,12 +4,17 @@ import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
 import { supabase } from '../services/supabase';
 import { Artigo } from '../types';
-import { Calendar, Search, ArrowRight, ImageOff } from 'lucide-react';
+import { Calendar, Search, ArrowRight, ImageOff, Building2 } from 'lucide-react';
 
 interface BlogPageProps {
   onLoginClick: () => void;
   onNavigate: (target: string) => void;
   onArticleClick: (id: number) => void;
+}
+
+interface EmpresaInfo {
+  nome: string;
+  logo?: string;
 }
 
 const CardImage: React.FC<{ src?: string }> = ({ src }) => {
@@ -36,6 +41,7 @@ const CardImage: React.FC<{ src?: string }> = ({ src }) => {
 
 export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, onArticleClick }) => {
   const [artigos, setArtigos] = useState<Artigo[]>([]);
+  const [empresasMap, setEmpresasMap] = useState<Record<string, EmpresaInfo>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -45,14 +51,23 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, on
 
   const fetchArtigos = async () => {
     try {
-      const { data, error } = await supabase
-        .from('artigos')
-        .select('*')
-        .eq('aprovado', true)
-        .order('created_at', { ascending: false });
+      const [artigosRes, empresasRes] = await Promise.all([
+        supabase.from('artigos').select('*').eq('aprovado', true).order('created_at', { ascending: false }),
+        supabase.from('empresas').select('responsavel, nome, logo')
+      ]);
       
-      if (error) throw error;
-      setArtigos(data || []);
+      if (artigosRes.error) throw artigosRes.error;
+      setArtigos(artigosRes.data || []);
+
+      if (empresasRes.data) {
+        const map: Record<string, EmpresaInfo> = {};
+        empresasRes.data.forEach((e) => {
+          if (e.responsavel) {
+            map[e.responsavel] = { nome: e.nome, logo: e.logo };
+          }
+        });
+        setEmpresasMap(map);
+      }
     } catch (error) {
       console.error('Error fetching articles:', error);
     } finally {
@@ -106,32 +121,50 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, on
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up" style={{animationDelay: '0.2s'}}>
-                    {filteredArtigos.map((artigo) => (
-                        <div 
-                            key={artigo.id} 
-                            onClick={() => onArticleClick(artigo.id)}
-                            className="group flex flex-col bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                        >
-                            <div className="h-48 overflow-hidden relative">
-                                <CardImage src={artigo.capa} />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                                <div className="absolute bottom-4 left-4">
-                                    <span className="bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
-                                        {artigo.tags?.[0] || 'Geral'}
-                                    </span>
+                    {filteredArtigos.map((artigo) => {
+                        const company = artigo.autor ? empresasMap[artigo.autor] : null;
+                        return (
+                            <div 
+                                key={artigo.id} 
+                                onClick={() => onArticleClick(artigo.id)}
+                                className="group flex flex-col bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+                            >
+                                <div className="h-48 overflow-hidden relative">
+                                    <CardImage src={artigo.capa} />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                                    <div className="absolute bottom-4 left-4">
+                                        <span className="bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                                            {artigo.tags?.[0] || 'Geral'}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="p-8 flex-1 flex flex-col">
-                                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-4">
-                                    <Calendar size={14} className="text-brand-green" />
-                                    <span>{new Date(artigo.created_at).toLocaleDateString('pt-BR')}</span>
-                                </div>
-                                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3 group-hover:text-brand-green transition-colors line-clamp-2">
-                                    {artigo.titulo}
-                                </h3>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 line-clamp-3 font-medium leading-relaxed flex-1">
-                                    {artigo.subtitulo}
-                                </p>
+                                <div className="p-8 flex-1 flex flex-col">
+                                    {/* Empresa & Data */}
+                                    <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-200/80 dark:border-white/5">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <div className="w-7 h-7 rounded-lg bg-slate-200/80 dark:bg-white/10 border border-slate-300/80 dark:border-white/10 p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
+                                                {company?.logo ? (
+                                                    <img src={company.logo} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-contain rounded-md" />
+                                                ) : (
+                                                    <Building2 size={14} className="text-brand-green" />
+                                                )}
+                                            </div>
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                                                {company?.nome || 'INOVAP'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0">
+                                            <Calendar size={13} className="text-brand-green" />
+                                            <span>{new Date(artigo.created_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3 group-hover:text-brand-green transition-colors line-clamp-2">
+                                        {artigo.titulo}
+                                    </h3>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 line-clamp-3 font-medium leading-relaxed flex-1">
+                                        {artigo.subtitulo}
+                                    </p>
                                 
                                 <div className="mt-auto pt-6 border-t border-slate-200 dark:border-white/5 flex justify-between items-center">
                                     <div className="flex gap-2">
@@ -145,7 +178,8 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, on
                                 </div>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
             </>

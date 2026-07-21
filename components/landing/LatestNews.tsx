@@ -2,11 +2,16 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { Artigo } from '../../types';
-import { Calendar, ArrowRight, ImageOff } from 'lucide-react';
+import { Calendar, ArrowRight, ImageOff, Building2 } from 'lucide-react';
 
 interface LatestNewsProps {
   onViewAll?: () => void;
   onArticleClick?: (id: number) => void;
+}
+
+interface EmpresaInfo {
+  nome: string;
+  logo?: string;
 }
 
 const NewsCardImage: React.FC<{ src?: string }> = ({ src }) => {
@@ -33,19 +38,29 @@ const NewsCardImage: React.FC<{ src?: string }> = ({ src }) => {
 
 export const LatestNews: React.FC<LatestNewsProps> = ({ onViewAll, onArticleClick }) => {
   const [news, setNews] = useState<Artigo[]>([]);
+  const [empresasMap, setEmpresasMap] = useState<Record<string, EmpresaInfo>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchNews() {
       try {
-        const { data, error } = await supabase
-          .from('artigos')
-          .select('*')
-          .limit(3)
-          .order('created_at', { ascending: false });
+        const [newsRes, empresasRes] = await Promise.all([
+          supabase.from('artigos').select('*').limit(3).order('created_at', { ascending: false }),
+          supabase.from('empresas').select('responsavel, nome, logo')
+        ]);
         
-        if (error) throw error;
-        setNews(data || []);
+        if (newsRes.error) throw newsRes.error;
+        setNews(newsRes.data || []);
+
+        if (empresasRes.data) {
+          const map: Record<string, EmpresaInfo> = {};
+          empresasRes.data.forEach((e) => {
+            if (e.responsavel) {
+              map[e.responsavel] = { nome: e.nome, logo: e.logo };
+            }
+          });
+          setEmpresasMap(map);
+        }
       } catch (e) {
         console.error("Error loading news", e);
       } finally {
@@ -79,40 +94,58 @@ export const LatestNews: React.FC<LatestNewsProps> = ({ onViewAll, onArticleClic
            </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {news.map((item) => (
-              <div 
-                key={item.id} 
-                onClick={() => onArticleClick && onArticleClick(item.id)}
-                className="group bg-white/5 border border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 transition-all duration-500 hover:shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col h-full cursor-pointer hover:-translate-y-1"
-              >
-                <div className="h-56 bg-slate-900 relative overflow-hidden">
-                  <NewsCardImage src={item.capa} />
-                  {/* Overlay Gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
-                  
-                  <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md border border-white/10 text-brand-neon text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
-                    Artigo
+            {news.map((item) => {
+              const company = item.autor ? empresasMap[item.autor] : null;
+              return (
+                <div 
+                  key={item.id} 
+                  onClick={() => onArticleClick && onArticleClick(item.id)}
+                  className="group bg-white/5 border border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 transition-all duration-500 hover:shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col h-full cursor-pointer hover:-translate-y-1"
+                >
+                  <div className="h-56 bg-slate-900 relative overflow-hidden">
+                    <NewsCardImage src={item.capa} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+                    
+                    <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md border border-white/10 text-brand-neon text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                      Artigo
+                    </div>
+                  </div>
+                  <div className="p-8 flex flex-col flex-1 relative">
+                    {/* Empresa & Data */}
+                    <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-white/10">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-white/10 border border-white/10 p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
+                          {company?.logo ? (
+                            <img src={company.logo} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-contain rounded-md" />
+                          ) : (
+                            <Building2 size={14} className="text-brand-green" />
+                          )}
+                        </div>
+                        <span className="text-xs font-bold text-slate-200 truncate">
+                          {company?.nome || 'INOVAP'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-500 text-xs shrink-0">
+                        <Calendar size={13} />
+                        <span>{new Date(item.created_at).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    </div>
+
+                    <h3 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-brand-neon transition-colors">
+                      {item.titulo}
+                    </h3>
+                    <p className="text-slate-400 text-sm line-clamp-3 mb-6 flex-1 font-light leading-relaxed">
+                      {item.subtitulo}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-auto">
+                      {item.tags && item.tags.map((tag, i) => (
+                          <span key={i} className="text-xs font-medium text-slate-300 bg-white/10 border border-white/5 px-3 py-1 rounded-lg">#{tag}</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="p-8 flex flex-col flex-1 relative">
-                  <div className="flex items-center gap-2 text-slate-500 text-sm mb-4">
-                    <Calendar size={14} />
-                    <span>{new Date(item.created_at).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-brand-neon transition-colors">
-                    {item.titulo}
-                  </h3>
-                  <p className="text-slate-400 text-sm line-clamp-3 mb-6 flex-1 font-light leading-relaxed">
-                    {item.subtitulo}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-auto">
-                    {item.tags && item.tags.map((tag, i) => (
-                        <span key={i} className="text-xs font-medium text-slate-300 bg-white/10 border border-white/5 px-3 py-1 rounded-lg">#{tag}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         
