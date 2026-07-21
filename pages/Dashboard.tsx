@@ -9,7 +9,7 @@ import {
   BookOpen, MapPin, Search as SearchIcon, X, BarChart3,
   ShieldAlert, Settings, Info, History, Coins, Edit3,
   CheckSquare, FileText, ExternalLink, Zap, Clock, Save, Camera as CameraIcon,
-  Eye, ThumbsUp, Trash2, User as UserIcon, QrCode as QrIcon,
+  Eye, ThumbsUp, Trash2, User as UserIcon, QrCode as QrIcon, Award,
   Bold, Italic, List, ListOrdered, Heading1, Heading2, ImageIcon, Type, Tags, Send,
   CalendarDays, Users as UsersIcon, ChevronRight, Lock, Filter,
   CheckSquare as TaskIcon, ListTodo, CalendarClock, UserCheck,
@@ -144,6 +144,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   const [editingValue, setEditingValue] = useState<string>('');
   const [isEditingAllRules, setIsEditingAllRules] = useState(false);
   const [tempRuleValues, setTempRuleValues] = useState<Record<number, number>>({});
+  const [isAddingRule, setIsAddingRule] = useState(false);
+  const [newRuleData, setNewRuleData] = useState({ acao: '', valor: 0 });
+  const [selectedMemberForReward, setSelectedMemberForReward] = useState<any | null>(null);
+  const [rewardRuleId, setRewardRuleId] = useState<number | null>(null);
+  const [rewardReason, setRewardReason] = useState('');
 
   // Check-in States
   const [isScanning, setIsScanning] = useState(false);
@@ -706,6 +711,53 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     } catch (err) {
       console.error(err);
       showNotification('error', 'Erro ao salvar novas pontuações.');
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const handleCreateRule = async () => {
+    if (!newRuleData.acao || newRuleData.valor <= 0) return;
+    try {
+      setIsProcessingAction(true);
+      const { error } = await supabase.from('pontuacao_regras').insert([newRuleData]);
+      if (error) throw error;
+      showNotification('success', 'Nova regra criada com sucesso!');
+      setIsAddingRule(false);
+      setNewRuleData({ acao: '', valor: 0 });
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      showNotification('error', 'Falha ao criar nova regra.');
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const handleAwardPoints = async () => {
+    if (!selectedMemberForReward || !rewardRuleId) return;
+    const rule = rules.find(r => r.id === rewardRuleId);
+    if (!rule) return;
+    
+    try {
+      setIsProcessingAction(true);
+      const { error } = await supabase.from('pontuacao_logs').insert([{
+        user_id: selectedMemberForReward.id,
+        regra_id: rewardRuleId,
+        pontos_atribuidos: rule.valor,
+        atribuido_por: user.nome || 'Administrador',
+        motivo: rewardReason || rule.acao
+      }]);
+      
+      if (error) throw error;
+      showNotification('success', `Pontos concedidos com sucesso para ${selectedMemberForReward.nome}!`);
+      setSelectedMemberForReward(null);
+      setRewardRuleId(null);
+      setRewardReason('');
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      showNotification('error', 'Erro ao atribuir pontos.');
     } finally {
       setIsProcessingAction(false);
     }
@@ -1909,25 +1961,74 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                       <h3 className="text-xl font-black mb-10 flex items-center justify-between text-slate-900 dark:text-white uppercase tracking-[0.2em] opacity-60">
                         <span>Regras de Merito</span>
                         {user.governanca && (
-                          <button 
-                            onClick={() => {
-                              if (isEditingAllRules) {
-                                setIsEditingAllRules(false);
-                              } else {
-                                const initialValues: Record<number, number> = {};
-                                rules.forEach(r => { initialValues[r.id] = r.valor; });
-                                setTempRuleValues(initialValues);
-                                setIsEditingAllRules(true);
-                              }
-                            }}
-                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors group/gear"
-                            title="Ajustar pontuação das regras"
-                          >
-                            <Settings size={18} className={`text-brand-neon transition-transform duration-500 ${isEditingAllRules ? 'rotate-90' : 'group-hover/gear:rotate-90'}`} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                setIsAddingRule(!isAddingRule);
+                                if (isEditingAllRules) setIsEditingAllRules(false);
+                              }}
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-brand-neon"
+                              title="Adicionar nova regra/categoria"
+                            >
+                              <Plus size={18} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (isEditingAllRules) {
+                                  setIsEditingAllRules(false);
+                                } else {
+                                  const initialValues: Record<number, number> = {};
+                                  rules.forEach(r => { initialValues[r.id] = r.valor; });
+                                  setTempRuleValues(initialValues);
+                                  setIsEditingAllRules(true);
+                                  if (isAddingRule) setIsAddingRule(false);
+                                }
+                              }}
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors group/gear"
+                              title="Ajustar pontuação das regras"
+                            >
+                              <Settings size={18} className={`text-brand-neon transition-transform duration-500 ${isEditingAllRules ? 'rotate-90' : 'group-hover/gear:rotate-90'}`} />
+                            </button>
+                          </div>
                         )}
                       </h3>
                       <div className="space-y-4">
+                        {isAddingRule && (
+                          <div className="p-6 bg-slate-100/50 dark:bg-brand-black/40 rounded-[2rem] border border-brand-neon/20 mb-6 space-y-4 animate-fade-in">
+                            <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Nova Regra de Mérito</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <input
+                                type="text"
+                                placeholder="Ação (Ex: Mentorar GT)"
+                                value={newRuleData.acao}
+                                onChange={(e) => setNewRuleData({ ...newRuleData, acao: e.target.value })}
+                                className="w-full bg-white dark:bg-brand-elevated border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-neon"
+                              />
+                              <input
+                                type="number"
+                                placeholder="Pontuação (Ex: 15)"
+                                value={newRuleData.valor || ''}
+                                onChange={(e) => setNewRuleData({ ...newRuleData, valor: parseInt(e.target.value) || 0 })}
+                                className="w-full bg-white dark:bg-brand-elevated border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-neon"
+                              />
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={() => setIsAddingRule(false)}
+                                className="px-4 py-2 border border-slate-200 dark:border-white/10 rounded-xl text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={handleCreateRule}
+                                disabled={isProcessingAction || !newRuleData.acao || newRuleData.valor <= 0}
+                                className="px-4 py-2 bg-brand-neon text-black rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 transition-all shadow-neon"
+                              >
+                                {isProcessingAction ? 'Cadastrando...' : 'Cadastrar'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         {rules.map(rule => (
                           <div key={rule.id} className="flex items-center justify-between p-6 bg-white/40 dark:bg-brand-black/20 rounded-[2rem] border border-transparent hover:border-brand-neon/20 transition-all group/rule">
                             <span className="font-black text-slate-700 dark:text-slate-200 text-sm uppercase tracking-tight">{rule.acao}</span>
@@ -2410,6 +2511,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Posição</th>
                             <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">Perfil do Membro</th>
                             <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] text-right">Potencial Acumulado</th>
+                            {user.governanca && <th className="px-10 py-4 text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em] text-right">Ações</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -2431,12 +2533,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-r-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-right">
+                              <td className={`px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-right ${!user.governanca ? 'rounded-r-[2rem]' : ''}`}>
                                 <span className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white group-hover:text-brand-neon transition-colors">
                                   {u.pontos}
                                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">pts</span>
                                 </span>
                               </td>
+                              {user.governanca && (
+                                <td className="px-10 py-6 bg-slate-50/50 dark:bg-brand-surface/40 rounded-r-[2rem] group-hover:bg-slate-100 dark:group-hover:bg-brand-elevated transition-colors text-right">
+                                  <button
+                                    onClick={() => setSelectedMemberForReward(u)}
+                                    title="Conceder Mérito"
+                                    className="p-3 bg-brand-neon/10 hover:bg-brand-neon hover:text-black text-brand-neon rounded-2xl border border-brand-neon/20 hover:scale-105 transition-all inline-flex items-center justify-center"
+                                  >
+                                    <Award size={18} />
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -2447,26 +2560,94 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                     <div className="md:hidden space-y-4">
                       {ranking.map((u, i) => (
                         <div key={u.id} className="bg-slate-50/50 dark:bg-brand-surface/40 p-6 rounded-[2rem] flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${i === 0 ? 'bg-brand-neon text-black' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}`}>
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${i === 0 ? 'bg-brand-neon text-black' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}`}>
                               {i + 1}
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-white/10 overflow-hidden">
+                            <div className="w-12 h-12 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-white/10 overflow-hidden shrink-0">
                               {u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : <UserIcon size={20} className="m-auto mt-2.5 text-slate-300" />}
                             </div>
-                            <div>
-                              <p className="font-black text-slate-900 dark:text-white text-sm">{u.nome}</p>
+                            <div className="min-w-0">
+                              <p className="font-black text-slate-900 dark:text-white text-sm truncate">{u.nome}</p>
                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Membro</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xl font-black text-brand-neon leading-none">{u.pontos}</p>
-                            <p className="text-[8px] font-black text-slate-500 uppercase">PTS</p>
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="text-right">
+                              <p className="text-xl font-black text-brand-neon leading-none">{u.pontos}</p>
+                              <p className="text-[8px] font-black text-slate-500 uppercase">PTS</p>
+                            </div>
+                            {user.governanca && (
+                              <button
+                                onClick={() => setSelectedMemberForReward(u)}
+                                className="p-3 bg-brand-neon/15 hover:bg-brand-neon text-brand-neon hover:text-black rounded-xl border border-brand-neon/20 transition-colors"
+                              >
+                                <Award size={16} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* Modal de Conceder Mérito */}
+                  {selectedMemberForReward && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10 animate-fade-in">
+                      <div className="absolute inset-0 bg-white/80 dark:bg-black/90 backdrop-blur-3xl" onClick={() => setSelectedMemberForReward(null)}></div>
+                      <div className="relative w-full max-w-lg bg-white dark:bg-brand-surface border border-slate-100 dark:border-white/5 rounded-[3rem] p-10 md:p-12 shadow-2xl animate-fade-in-up flex flex-col gap-8">
+                        <button onClick={() => setSelectedMemberForReward(null)} className="absolute top-8 right-8 w-10 h-10 flex items-center justify-center rounded-[1rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-red-500 transition-all"><X size={20} /></button>
+                        
+                        <div>
+                          <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Conceder Mérito</h3>
+                          <p className="text-slate-500 mt-1 font-medium text-sm">Atribuir pontos de impacto para <strong>{selectedMemberForReward.nome}</strong>.</p>
+                        </div>
+
+                        <div className="space-y-6">
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Selecione a Regra de Mérito</label>
+                            <select
+                              value={rewardRuleId || ''}
+                              onChange={(e) => setRewardRuleId(parseInt(e.target.value) || null)}
+                              className="w-full bg-slate-50 dark:bg-brand-black border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-4 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-neon"
+                            >
+                              <option value="">Selecione uma regra...</option>
+                              {rules.map(r => (
+                                <option key={r.id} value={r.id}>{r.acao} (+{r.valor} pts)</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Motivo / Descrição</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: Excelente mentoria no GT de Software"
+                              value={rewardReason}
+                              onChange={(e) => setRewardReason(e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-brand-black border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-4 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-neon"
+                            />
+                          </div>
+
+                          <div className="flex gap-3 justify-end pt-4">
+                            <button
+                              onClick={() => setSelectedMemberForReward(null)}
+                              className="px-6 py-3 rounded-2xl border border-slate-200 dark:border-white/10 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={handleAwardPoints}
+                              disabled={isProcessingAction || !rewardRuleId}
+                              className="px-6 py-3 bg-brand-neon text-black rounded-2xl text-xs font-black uppercase tracking-wider hover:scale-105 transition-all shadow-neon"
+                            >
+                              {isProcessingAction ? 'Processando...' : 'Confirmar Atribuição'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
