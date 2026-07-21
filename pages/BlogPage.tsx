@@ -1,3 +1,4 @@
+// @sos-edit: false
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
@@ -10,6 +11,28 @@ interface BlogPageProps {
   onNavigate: (target: string) => void;
   onArticleClick: (id: number) => void;
 }
+
+const CardImage: React.FC<{ src?: string }> = ({ src }) => {
+  const [error, setError] = useState(false);
+  const isValid = src && src !== '[object Object]' && src.trim() !== '' && !error;
+
+  if (!isValid) {
+    return (
+      <div className="w-full h-full bg-slate-200 dark:bg-slate-900 flex items-center justify-center">
+        <ImageOff className="text-slate-400 dark:text-slate-700" size={32} />
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={src} 
+      alt="" 
+      onError={() => setError(true)} 
+      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-90 group-hover:opacity-100" 
+    />
+  );
+};
 
 export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, onArticleClick }) => {
   const [artigos, setArtigos] = useState<Artigo[]>([]);
@@ -90,13 +113,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onLoginClick, onNavigate, on
                             className="group flex flex-col bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
                         >
                             <div className="h-48 overflow-hidden relative">
-                                {artigo.capa ? (
-                                    <img src={artigo.capa} alt={artigo.titulo} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-90 group-hover:opacity-100" />
-                                ) : (
-                                    <div className="w-full h-full bg-slate-200 dark:bg-slate-900 flex items-center justify-center">
-                                        <ImageOff className="text-slate-400 dark:text-slate-700" size={32} />
-                                    </div>
-                                )}
+                                <CardImage src={artigo.capa} />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                                 <div className="absolute bottom-4 left-4">
                                     <span className="bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">

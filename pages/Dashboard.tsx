@@ -1,4 +1,4 @@
-
+// @sos-edit: false
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Logo } from '../components/ui/Logo';
 import {
@@ -1995,7 +1995,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             <td className="px-10 py-8 bg-slate-50/50 dark:bg-brand-surface/40 rounded-l-[3rem] group-hover:bg-white dark:group-hover:bg-brand-elevated transition-colors border border-transparent hover:border-brand-neon/10">
                               <div className="flex items-center gap-8">
                                 <div className="w-24 h-16 bg-slate-100 dark:bg-brand-black rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5 shrink-0 group-hover:scale-105 transition-transform">
-                                  {art.capa ? <img src={art.capa} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><FileText size={20} className="text-slate-300" /></div>}
+                                  {art.capa ? <img src={art.capa} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><FileText size={20} className="text-slate-300" /></div>}
                                 </div>
                                 <div className="min-w-0">
                                   <h4 className="font-black text-slate-900 dark:text-white text-xl tracking-tight truncate group-hover:text-brand-neon transition-colors">{art.titulo}</h4>

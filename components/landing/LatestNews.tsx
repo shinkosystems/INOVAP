@@ -1,3 +1,4 @@
+// @sos-edit: false
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { Artigo } from '../../types';
@@ -7,6 +8,28 @@ interface LatestNewsProps {
   onViewAll?: () => void;
   onArticleClick?: (id: number) => void;
 }
+
+const NewsCardImage: React.FC<{ src?: string }> = ({ src }) => {
+  const [error, setError] = useState(false);
+  const isValid = src && src !== '[object Object]' && src.trim() !== '' && !error;
+
+  if (!isValid) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-slate-700 bg-slate-900">
+        <ImageOff size={32} />
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={src} 
+      alt="" 
+      onError={() => setError(true)} 
+      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100" 
+    />
+  );
+};
 
 export const LatestNews: React.FC<LatestNewsProps> = ({ onViewAll, onArticleClick }) => {
   const [news, setNews] = useState<Artigo[]>([]);
@@ -63,13 +86,7 @@ export const LatestNews: React.FC<LatestNewsProps> = ({ onViewAll, onArticleClic
                 className="group bg-white/5 border border-white/10 rounded-3xl overflow-hidden hover:border-brand-neon/50 transition-all duration-500 hover:shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col h-full cursor-pointer hover:-translate-y-1"
               >
                 <div className="h-56 bg-slate-900 relative overflow-hidden">
-                  {item.capa ? (
-                    <img src={item.capa} alt={item.titulo} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-700 bg-slate-900">
-                        <ImageOff size={32} />
-                    </div>
-                  )}
+                  <NewsCardImage src={item.capa} />
                   {/* Overlay Gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
                   
