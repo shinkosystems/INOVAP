@@ -3,11 +3,15 @@
 -- INOVAP: CORREÇÃO DO CAMPO ATRIBUIDO_POR EM PONTUACAO_LOGS
 -- ==========================================
 
--- 1. Alterar o tipo da coluna atribuido_por de UUID para TEXT em pontuacao_logs
+-- 1. Remover a restrição de chave estrangeira que impede a conversão para TEXT
+ALTER TABLE pontuacao_logs 
+DROP CONSTRAINT IF EXISTS pontuacao_logs_atribuido_por_fkey;
+
+-- 2. Alterar o tipo da coluna atribuido_por de UUID para TEXT
 ALTER TABLE pontuacao_logs 
 ALTER COLUMN atribuido_por TYPE TEXT USING atribuido_por::text;
 
--- 2. Atualizar gatilho de aprovação de artigos para evitar erro de UUID ao inserir 'Sistema'
+-- 3. Atualizar gatilho de aprovação de artigos
 CREATE OR REPLACE FUNCTION trigger_article_points()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -37,7 +41,7 @@ AFTER UPDATE ON artigos
 FOR EACH ROW
 EXECUTE FUNCTION trigger_article_points();
 
--- 3. Atualizar gatilho de check-in em eventos
+-- 4. Atualizar gatilho de check-in em eventos
 CREATE OR REPLACE FUNCTION trigger_checkin_points()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -62,7 +66,7 @@ AFTER UPDATE ON inscricoes
 FOR EACH ROW
 EXECUTE FUNCTION trigger_checkin_points();
 
--- 4. Atualizar gatilho de tarefas concluídas
+-- 5. Atualizar gatilho de tarefas concluídas
 CREATE OR REPLACE FUNCTION trigger_task_points()
 RETURNS TRIGGER AS $$
 DECLARE
