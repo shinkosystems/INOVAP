@@ -1,6 +1,6 @@
 -- @sos-edit: false
 -- ==========================================
--- INOVAP: CORREÇÃO DO CAMPO ATRIBUIDO_POR EM PONTUACAO_LOGS
+-- INOVAP: CORREÇÃO DO CAMPO ATRIBUIDO_POR E RLS EM PONTUACAO_LOGS
 -- ==========================================
 
 -- 1. Remover a restrição de chave estrangeira que impede a conversão para TEXT
@@ -11,9 +11,20 @@ DROP CONSTRAINT IF EXISTS pontuacao_logs_atribuido_por_fkey;
 ALTER TABLE pontuacao_logs 
 ALTER COLUMN atribuido_por TYPE TEXT USING atribuido_por::text;
 
--- 3. Atualizar gatilho de aprovação de artigos
+-- 3. Habilitar RLS e adicionar políticas permissivas para a tabela pontuacao_logs
+ALTER TABLE pontuacao_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Permitir leitura publica em pontuacao_logs" ON pontuacao_logs;
+CREATE POLICY "Permitir leitura publica em pontuacao_logs" 
+ON pontuacao_logs FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Permitir insercao em pontuacao_logs" ON pontuacao_logs;
+CREATE POLICY "Permitir insercao em pontuacao_logs" 
+ON pontuacao_logs FOR INSERT WITH CHECK (true);
+
+-- 4. Atualizar gatilho de aprovação de artigos com SECURITY DEFINER (para ignorar limitações de RLS ao pontuar)
 CREATE OR REPLACE FUNCTION trigger_article_points()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER SECURITY DEFINER AS $$
 DECLARE
     id_regra INT;
     valor_pontos INT;
@@ -41,9 +52,9 @@ AFTER UPDATE ON artigos
 FOR EACH ROW
 EXECUTE FUNCTION trigger_article_points();
 
--- 4. Atualizar gatilho de check-in em eventos
+-- 5. Atualizar gatilho de check-in em eventos com SECURITY DEFINER
 CREATE OR REPLACE FUNCTION trigger_checkin_points()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER SECURITY DEFINER AS $$
 DECLARE
     id_regra INT;
     valor_pontos INT;
@@ -66,9 +77,9 @@ AFTER UPDATE ON inscricoes
 FOR EACH ROW
 EXECUTE FUNCTION trigger_checkin_points();
 
--- 5. Atualizar gatilho de tarefas concluídas
+-- 6. Atualizar gatilho de tarefas concluídas com SECURITY DEFINER
 CREATE OR REPLACE FUNCTION trigger_task_points()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER SECURITY DEFINER AS $$
 DECLARE
     id_regra INT;
     valor_pontos INT;
