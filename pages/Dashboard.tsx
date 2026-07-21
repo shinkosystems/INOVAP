@@ -142,6 +142,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   // Gamification Edit States
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
+  const [isEditingAllRules, setIsEditingAllRules] = useState(false);
+  const [tempRuleValues, setTempRuleValues] = useState<Record<number, number>>({});
 
   // Check-in States
   const [isScanning, setIsScanning] = useState(false);
@@ -689,6 +691,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
     if (editingRuleId === null) return;
     await supabase.from('pontuacao_regras').update({ valor: parseInt(editingValue) }).eq('id', editingRuleId);
     setEditingRuleId(null); fetchData();
+  };
+
+  const handleSaveAllRules = async () => {
+    try {
+      setIsProcessingAction(true);
+      const updates = Object.entries(tempRuleValues).map(([id, valor]) =>
+        supabase.from('pontuacao_regras').update({ valor }).eq('id', parseInt(id))
+      );
+      await Promise.all(updates);
+      showNotification('success', 'Regras de mérito atualizadas com sucesso!');
+      setIsEditingAllRules(false);
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      showNotification('error', 'Erro ao salvar novas pontuações.');
+    } finally {
+      setIsProcessingAction(false);
+    }
   };
 
   const getGtNameById = (id: number) => gts.find(g => g.id === id)?.gt || `GT ${id}`;
@@ -1888,14 +1908,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                     <div className="bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-12 hover:bg-white dark:hover:bg-brand-elevated transition-all shadow-sm group">
                       <h3 className="text-xl font-black mb-10 flex items-center justify-between text-slate-900 dark:text-white uppercase tracking-[0.2em] opacity-60">
                         <span>Regras de Merito</span>
-                        <Settings size={18} className="text-brand-neon group-hover:rotate-90 transition-transform duration-500" />
+                        {user.governanca && (
+                          <button 
+                            onClick={() => {
+                              if (isEditingAllRules) {
+                                setIsEditingAllRules(false);
+                              } else {
+                                const initialValues: Record<number, number> = {};
+                                rules.forEach(r => { initialValues[r.id] = r.valor; });
+                                setTempRuleValues(initialValues);
+                                setIsEditingAllRules(true);
+                              }
+                            }}
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors group/gear"
+                            title="Ajustar pontuação das regras"
+                          >
+                            <Settings size={18} className={`text-brand-neon transition-transform duration-500 ${isEditingAllRules ? 'rotate-90' : 'group-hover/gear:rotate-90'}`} />
+                          </button>
+                        )}
                       </h3>
                       <div className="space-y-4">
                         {rules.map(rule => (
                           <div key={rule.id} className="flex items-center justify-between p-6 bg-white/40 dark:bg-brand-black/20 rounded-[2rem] border border-transparent hover:border-brand-neon/20 transition-all group/rule">
                             <span className="font-black text-slate-700 dark:text-slate-200 text-sm uppercase tracking-tight">{rule.acao}</span>
                             <div className="flex items-center gap-4">
-                              {editingRuleId === rule.id ? (
+                              {isEditingAllRules ? (
+                                <input
+                                  type="number"
+                                  value={tempRuleValues[rule.id] ?? rule.valor}
+                                  onChange={(e) => setTempRuleValues({ ...tempRuleValues, [rule.id]: parseInt(e.target.value) || 0 })}
+                                  className="w-24 bg-white dark:bg-brand-elevated border border-brand-neon rounded-xl px-3 py-2 text-center font-black text-brand-neon focus:outline-none"
+                                />
+                              ) : editingRuleId === rule.id ? (
                                 <div className="flex items-center gap-2 animate-fade-in">
                                   <input
                                     type="number"
@@ -1914,7 +1958,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                                     <span className="text-[10px] text-slate-400 uppercase tracking-widest ml-2">pts</span>
                                   </span>
                                   {user.governanca && (
-                                    <button onClick={() => handleEditRule(rule)} className="p-2 text-slate-300 dark:text-slate-700 hover:text-brand-neon transition-colors opacity-0 group-rule:opacity-100">
+                                    <button onClick={() => handleEditRule(rule)} className="p-2 text-slate-300 dark:text-slate-700 hover:text-brand-neon transition-colors opacity-0 group-hover:opacity-100">
                                       <Edit3 size={18} />
                                     </button>
                                   )}
@@ -1923,6 +1967,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             </div>
                           </div>
                         ))}
+                        {isEditingAllRules && (
+                          <div className="flex gap-3 justify-end mt-6 pt-6 border-t border-slate-200 dark:border-white/5 animate-fade-in">
+                            <button
+                              onClick={() => setIsEditingAllRules(false)}
+                              className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={handleSaveAllRules}
+                              disabled={isProcessingAction}
+                              className="px-6 py-2.5 bg-brand-neon text-black rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 transition-all shadow-neon"
+                            >
+                              {isProcessingAction ? 'Salvando...' : 'Salvar Alterações'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
