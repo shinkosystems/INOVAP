@@ -4,7 +4,7 @@ import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
 import { supabase } from '../services/supabase';
 import { Artigo } from '../types';
-import { Calendar, ArrowLeft, User, Clock, Share2, Tag, ImageOff } from 'lucide-react';
+import { Calendar, ArrowLeft, User, Clock, Share2, Tag, ImageOff, Building2 } from 'lucide-react';
 
 interface ArticlePageProps {
   articleId: number | null;
@@ -17,6 +17,8 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId, onBack, onL
   const [artigo, setArtigo] = useState<Artigo | null>(null);
   const [loading, setLoading] = useState(true);
   const [authorName, setAuthorName] = useState('Autor INOVAP');
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
@@ -35,11 +37,23 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId, onBack, onL
         setArtigo(data);
 
         if (data.autor) {
+            // Buscar empresa associada ao autor
+            const { data: companyData } = await supabase
+                .from('empresas')
+                .select('nome, logo')
+                .eq('responsavel', data.autor)
+                .maybeSingle();
+
+            if (companyData && companyData.nome) {
+                setCompanyName(companyData.nome);
+                setCompanyLogo(companyData.logo || null);
+            }
+
             const { data: userData } = await supabase
                 .from('users')
                 .select('nome')
                 .eq('uuid', data.autor)
-                .single();
+                .maybeSingle();
             if (userData) setAuthorName(userData.nome);
         }
 
@@ -117,14 +131,18 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId, onBack, onL
         <div className="max-w-4xl mx-auto px-6 -mt-10 relative z-10">
             <div className="bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl mb-12">
                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-green to-emerald-600 p-[2px]">
-                         <div className="w-full h-full rounded-full bg-white dark:bg-black flex items-center justify-center">
-                             <User size={20} className="text-slate-900 dark:text-white" />
-                         </div>
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-1 flex items-center justify-center overflow-hidden shrink-0">
+                        {companyLogo ? (
+                            <img src={companyLogo} alt={companyName || authorName} className="w-full h-full object-contain rounded-xl" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        ) : (
+                            <div className="w-full h-full rounded-xl bg-brand-green/20 flex items-center justify-center">
+                                <Building2 size={20} className="text-brand-green" />
+                            </div>
+                        )}
                     </div>
                     <div>
-                        <div className="text-slate-900 dark:text-white font-bold">{authorName}</div>
-                        <div className="text-slate-500 text-xs">Colaborador</div>
+                        <div className="text-slate-900 dark:text-white font-bold">{companyName || authorName}</div>
+                        <div className="text-slate-500 text-xs font-medium">{companyName ? 'Empresa Representante' : 'Colaborador INOVAP'}</div>
                     </div>
                 </div>
                 
