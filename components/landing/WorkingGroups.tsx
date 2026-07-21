@@ -77,7 +77,7 @@ export const WorkingGroups: React.FC = () => {
 
                 <h3 className="text-xl font-black text-slate-800 dark:text-slate-200 mb-4 tracking-tight group-hover:text-brand-neon transition-colors">{gt.gt}</h3>
                 <p className="text-slate-500 dark:text-slate-500 text-sm mb-8 leading-relaxed font-medium">
-                  Atuação estratégica conectando atores chave na área de {gt.gt.toLowerCase()}.
+                  {gt.descricao || `Atuação estratégica conectando atores chave na área de ${gt.gt.toLowerCase()}.`}
                 </p>
 
                 <div className="pt-8 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-opacity duration-500">

@@ -1,7 +1,8 @@
-
+// @sos-edit: false
 export interface GT {
   id: number;
   gt: string;
+  descricao?: string;
 }
 
 export interface Cargo {

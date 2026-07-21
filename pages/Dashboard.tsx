@@ -72,8 +72,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   // GT Management Specific States
   const [isAddingGt, setIsAddingGt] = useState(false);
   const [newGtName, setNewGtName] = useState('');
+  const [newGtDescription, setNewGtDescription] = useState('');
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [gtMemberSearchTerm, setGtMemberSearchTerm] = useState('');
+  const [isEditingGtInfo, setIsEditingGtInfo] = useState(false);
+  const [editingGtName, setEditingGtName] = useState('');
+  const [editingGtDescription, setEditingGtDescription] = useState('');
 
   // Members Screen States
   const [selectedMemberForGts, setSelectedMemberForGts] = useState<User | null>(null);
@@ -187,7 +191,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
       // 1. Fetch core data needed for initial view
       const [gtsRes, usersRes, rulesRes, logsRes, empresasRes] = await Promise.all([
         supabase.from('gts').select('*').order('gt'),
-        supabase.from('users').select('id, nome, pontos, avatar, cargo, gts, email').order('pontos', { ascending: false }),
+        supabase.from('users').select('id, nome, pontos, avatar, cargo, gts, email, governanca, uuid').order('pontos', { ascending: false }),
         supabase.from('pontuacao_regras').select('*').order('valor', { ascending: false }),
         supabase.from('pontuacao_logs').select('*').order('created_at', { ascending: false }).limit(20),
         supabase.from('empresas').select('*')
@@ -643,8 +647,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
   // GT Management
   const handleCreateGt = async () => {
     if (!newGtName.trim()) return;
-    const { error } = await supabase.from('gts').insert([{ gt: newGtName }]);
-    if (!error) { showNotification('success', 'GT Criado!'); setIsAddingGt(false); setNewGtName(''); fetchData(); }
+    const { error } = await supabase.from('gts').insert([{ gt: newGtName, descricao: newGtDescription }]);
+    if (!error) { 
+      showNotification('success', 'GT Criado!'); 
+      setIsAddingGt(false); 
+      setNewGtName(''); 
+      setNewGtDescription('');
+      fetchData(); 
+    }
+  };
+
+  const handleUpdateGtInfo = async () => {
+    if (!selectedGtForManagement || !editingGtName.trim()) return;
+    try {
+      setIsProcessingAction(true);
+      const { error } = await supabase.from('gts').update({
+        gt: editingGtName,
+        descricao: editingGtDescription
+      }).eq('id', selectedGtForManagement.id);
+      
+      if (error) throw error;
+      showNotification('success', 'Informações do GT atualizadas!');
+      setIsEditingGtInfo(false);
+      setSelectedGtForManagement({ ...selectedGtForManagement, gt: editingGtName, descricao: editingGtDescription });
+      fetchData();
+    } catch (err: any) {
+      console.error(err);
+      showNotification('error', 'Falha ao atualizar GT: ' + err.message);
+    } finally {
+      setIsProcessingAction(false);
+    }
   };
 
   const handleDeleteGt = async (gtId: number) => {
@@ -2258,7 +2290,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {gts.map(gt => (
-                      <div key={gt.id} onClick={() => { setSelectedGtForManagement(gt); setGtMemberSearchTerm(''); }} className="group bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-10 hover:bg-white dark:hover:bg-brand-elevated transition-all duration-500 cursor-pointer border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden">
+                      <div key={gt.id} onClick={() => { setSelectedGtForManagement(gt); setEditingGtName(gt.gt); setEditingGtDescription(gt.descricao || ''); setIsEditingGtInfo(false); setGtMemberSearchTerm(''); }} className="group bg-slate-50/50 dark:bg-brand-surface/40 rounded-[3rem] p-10 hover:bg-white dark:hover:bg-brand-elevated transition-all duration-500 cursor-pointer border border-transparent hover:border-brand-neon/10 hover:shadow-2xl hover:shadow-brand-neon/5 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-brand-neon/5 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                         <div className="w-16 h-16 bg-white dark:bg-brand-black rounded-2xl flex items-center justify-center text-brand-neon mb-8 border border-slate-200 dark:border-white/10 group-hover:border-brand-neon transition-colors">
@@ -2267,6 +2299,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
 
                         <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-brand-neon transition-colors">{gt.gt}</h3>
                         <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] mt-2">Grupo de Trabalho Oficial</p>
+                        {gt.descricao && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 line-clamp-2 leading-relaxed font-medium">{gt.descricao}</p>
+                        )}
 
                         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-white/5 flex items-center justify-between">
                           <div className="flex -space-x-2">
@@ -2297,29 +2332,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                         <h3 className="text-4xl font-black mb-4 text-slate-900 dark:text-white uppercase tracking-tighter">Novo Grupo de Trabalho</h3>
                         <p className="text-slate-500 mb-12 font-medium">Defina uma nova unidade de atuação para impulsionar o ecossistema.</p>
 
-                        <div className="space-y-10">
-                          <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Nome do GT</label>
-                            <input
-                              type="text"
-                              value={newGtName}
-                              onChange={(e) => setNewGtName(e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-brand-elevated border-none rounded-[2rem] p-8 text-xl font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-brand-neon/10 transition-all"
-                              placeholder="Fomentando a Inovação..."
-                            />
-                          </div>
+                         <div className="space-y-8">
+                           <div className="space-y-4">
+                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Nome do GT</label>
+                             <input
+                               type="text"
+                               value={newGtName}
+                               onChange={(e) => setNewGtName(e.target.value)}
+                               className="w-full bg-slate-50 dark:bg-brand-elevated border-none rounded-[2rem] p-8 text-xl font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-brand-neon/10 transition-all"
+                               placeholder="Fomentando a Inovação..."
+                             />
+                           </div>
 
-                          <div className="flex gap-4 pt-6">
-                            <button onClick={() => setIsAddingGt(false)} className="flex-1 py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Cancelar</button>
-                            <button
-                              onClick={handleCreateGt}
-                              disabled={!newGtName.trim()}
-                              className="flex-[2] bg-brand-neon text-black py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all text-[10px] uppercase tracking-widest"
-                            >
-                              Fundar GT
-                            </button>
-                          </div>
-                        </div>
+                           <div className="space-y-4">
+                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-6">Descrição do GT</label>
+                             <textarea
+                               value={newGtDescription}
+                               onChange={(e) => setNewGtDescription(e.target.value)}
+                               className="w-full bg-slate-50 dark:bg-brand-elevated border-none rounded-[2rem] p-8 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-brand-neon/10 transition-all min-h-[120px] resize-none"
+                               placeholder="Descreva o propósito e as frentes de atuação deste Grupo de Trabalho..."
+                             />
+                           </div>
+
+                           <div className="flex gap-4 pt-6">
+                             <button onClick={() => setIsAddingGt(false)} className="flex-1 py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Cancelar</button>
+                             <button
+                               onClick={handleCreateGt}
+                               disabled={!newGtName.trim()}
+                               className="flex-[2] bg-brand-neon text-black py-6 rounded-[2rem] font-black shadow-neon hover:scale-105 transition-all text-[10px] uppercase tracking-widest"
+                             >
+                               Fundar GT
+                             </button>
+                           </div>
+                         </div>
                       </div>
                     </div>
                   )}
@@ -2334,17 +2379,61 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                           <button onClick={() => setSelectedGtForManagement(null)} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-slate-50 dark:bg-brand-elevated text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm"><X size={28} /></button>
                         </div>
 
-                        <div className="flex flex-col md:flex-row md:items-center gap-10 mb-20">
-                          <div className="w-24 h-24 bg-brand-neon text-black rounded-[2.5rem] flex items-center justify-center shadow-neon border-4 border-white dark:border-brand-surface"><Boxes size={48} /></div>
-                          <div>
-                            <h3 className="text-5xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{selectedGtForManagement.gt}</h3>
-                            <div className="flex items-center gap-4 mt-3">
-                              <span className="text-brand-neon font-black text-[10px] uppercase tracking-[0.3em]">Gestão Operacional</span>
-                              <div className="w-1.5 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full"></div>
-                              <span className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em]">{members.filter(m => m.gts?.includes(selectedGtForManagement.id)).length} Agentes Ativos</span>
-                            </div>
-                          </div>
-                        </div>
+                        <div className="flex flex-col md:flex-row md:items-start gap-10 mb-20">
+                           <div className="w-24 h-24 bg-brand-neon text-black rounded-[2.5rem] flex items-center justify-center shadow-neon border-4 border-white dark:border-brand-surface shrink-0"><Boxes size={48} /></div>
+                           <div className="flex-1 space-y-4">
+                             {isEditingGtInfo ? (
+                               <div className="space-y-4 max-w-2xl">
+                                 <input
+                                   type="text"
+                                   value={editingGtName}
+                                   onChange={(e) => setEditingGtName(e.target.value)}
+                                   className="w-full bg-slate-50 dark:bg-brand-elevated border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-4 text-xl font-bold text-slate-900 dark:text-white outline-none focus:border-brand-neon focus:ring-4 focus:ring-brand-neon/10"
+                                   placeholder="Nome do GT..."
+                                 />
+                                 <textarea
+                                   value={editingGtDescription}
+                                   onChange={(e) => setEditingGtDescription(e.target.value)}
+                                   className="w-full bg-slate-50 dark:bg-brand-elevated border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-medium text-slate-900 dark:text-white outline-none focus:border-brand-neon focus:ring-4 focus:ring-brand-neon/10 min-h-[100px] resize-none"
+                                   placeholder="Descrição do GT..."
+                                 />
+                                 <div className="flex gap-2">
+                                   <button onClick={() => setIsEditingGtInfo(false)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-white">Cancelar</button>
+                                   <button onClick={handleUpdateGtInfo} disabled={!editingGtName.trim() || isProcessingAction} className="px-4 py-2 bg-brand-neon text-black rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 transition-all shadow-neon">Salvar</button>
+                                 </div>
+                               </div>
+                             ) : (
+                               <>
+                                 <h3 className="text-5xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{selectedGtForManagement.gt}</h3>
+                                 {selectedGtForManagement.descricao ? (
+                                   <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-3xl mt-2">{selectedGtForManagement.descricao}</p>
+                                 ) : (
+                                   <p className="text-sm text-slate-400 dark:text-slate-600 font-medium italic mt-2">Sem descrição cadastrada.</p>
+                                 )}
+                                 <div className="flex flex-wrap items-center gap-4 mt-3">
+                                   <span className="text-brand-neon font-black text-[10px] uppercase tracking-[0.3em]">Gestão Operacional</span>
+                                   <div className="w-1.5 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full"></div>
+                                   <span className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em]">{members.filter(m => m.gts?.includes(selectedGtForManagement.id)).length} Agentes Ativos</span>
+                                   {user?.governanca && (
+                                     <>
+                                       <div className="w-1.5 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full"></div>
+                                       <button 
+                                         onClick={() => {
+                                           setEditingGtName(selectedGtForManagement.gt);
+                                           setEditingGtDescription(selectedGtForManagement.descricao || '');
+                                           setIsEditingGtInfo(true);
+                                         }} 
+                                         className="text-brand-neon font-black text-[10px] uppercase tracking-[0.3em] hover:underline"
+                                       >
+                                         Editar GT
+                                       </button>
+                                     </>
+                                   )}
+                                 </div>
+                               </>
+                             )}
+                           </div>
+                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
                           <div className="space-y-12">
@@ -2743,9 +2832,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                             <div className="w-32 h-32 rounded-[3.5rem] bg-white dark:bg-black border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden ring-8 ring-brand-neon/5">
                               {selectedMemberForGts.avatar ? <img src={selectedMemberForGts.avatar} className="w-full h-full object-cover" /> : <UserIcon size={48} className="text-slate-300 dark:text-slate-800" />}
                             </div>
-                            <div className="absolute -bottom-2 -right-2 bg-brand-neon text-black p-3 rounded-2xl shadow-neon border-4 border-white dark:border-brand-surface">
-                              <ShieldCheck size={20} />
-                            </div>
+                            {selectedMemberForGts.governanca && (
+                              <div className="absolute -bottom-2 -right-2 bg-brand-neon text-black p-3 rounded-2xl shadow-neon border-4 border-white dark:border-brand-surface animate-fade-in">
+                                <ShieldCheck size={20} />
+                              </div>
+                            )}
                           </div>
                           <h3 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{selectedMemberForGts.nome}</h3>
                           <p className="text-slate-500 dark:text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 italic">{selectedMemberForGts.email}</p>
