@@ -1,3 +1,4 @@
+// @sos-edit: false
 import React, { useEffect, useState } from 'react';
 import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
@@ -16,6 +17,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId, onBack, onL
   const [artigo, setArtigo] = useState<Artigo | null>(null);
   const [loading, setLoading] = useState(true);
   const [authorName, setAuthorName] = useState('Autor INOVAP');
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     const fetchArticle = async () => {
@@ -68,6 +70,8 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId, onBack, onL
     );
   }
 
+  const isValidCapa = artigo.capa && artigo.capa !== '[object Object]' && artigo.capa.trim() !== '' && !imageError;
+
   return (
     <div className="bg-white dark:bg-black min-h-screen text-slate-900 dark:text-white font-sans selection:bg-brand-neon selection:text-black transition-colors duration-300">
       <Navbar onLoginClick={onLoginClick} onNavigate={onNavigate} />
@@ -76,8 +80,8 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId, onBack, onL
 
       <article className="pb-20">
         <div className="relative w-full h-[60vh] min-h-[400px]">
-          {artigo.capa ? (
-             <img src={artigo.capa} alt={artigo.titulo} className="w-full h-full object-cover" />
+          {isValidCapa ? (
+             <img src={artigo.capa} alt="" onError={() => setImageError(true)} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full bg-slate-200 dark:bg-slate-900 flex items-center justify-center">
                 <ImageOff size={64} className="text-slate-400 dark:text-slate-700" />
