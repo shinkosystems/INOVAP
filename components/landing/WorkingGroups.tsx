@@ -1,19 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { GT } from '../../types';
-import { Leaf, Cpu, HeartPulse, Building2, Lightbulb, Zap } from 'lucide-react';
+import { Leaf, Cpu, HeartPulse, Building2, Lightbulb, Zap, Rocket, MessageSquare, GraduationCap } from 'lucide-react';
 
 export const WorkingGroups: React.FC = () => {
   const [gts, setGts] = useState<GT[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fallbackGTs = [
-    { id: 1, gt: "Agronegócio" },
-    { id: 2, gt: "Cidades Inteligentes" },
-    { id: 3, gt: "Saúde e Bem-estar" },
-    { id: 4, gt: "Indústria 4.0" },
-    { id: 5, gt: "Energias Renováveis" },
-    { id: 6, gt: "Educação Empreendedora" },
+    { id: 1, gt: "Inovação", descricao: "Fomento a projetos inovadores que conectam empresas, startups e academia no Alto Paraopeba." },
+    { id: 2, gt: "Comunicação", descricao: "Estrategias de comunicação e marketing do ecossistema, fortalecendo a visibilidade regional." },
+    { id: 5, gt: "Apoio às Startups", descricao: "Mentoria, aceleração e conexão de startups com investidores e o mercado local." },
+    { id: 6, gt: "Tecnologia", descricao: "Desenvolvimento de soluções tecnológicas e digitalização de processos no território." },
+    { id: 9, gt: "Capacitações", descricao: "Formação de talentos por meio de workshops, cursos e programas de desenvolvimento profissional." }
   ];
 
   useEffect(() => {
@@ -35,10 +34,19 @@ export const WorkingGroups: React.FC = () => {
     fetchGTs();
   }, []);
 
-  const getIcon = (index: number) => {
-    const icons = [Leaf, Building2, HeartPulse, Cpu, Zap, Lightbulb];
-    const IconComponent = icons[index % icons.length];
-    return <IconComponent size={24} />;
+  const getIcon = (gtName: string) => {
+    const name = gtName.toLowerCase();
+    if (name.includes('startup') || name.includes('apoio')) return <Rocket size={24} />;
+    if (name.includes('comunic')) return <MessageSquare size={24} />;
+    if (name.includes('tecnol')) return <Cpu size={24} />;
+    if (name.includes('capacit') || name.includes('educa')) return <GraduationCap size={24} />;
+    if (name.includes('inov')) return <Lightbulb size={24} />;
+    if (name.includes('agro')) return <Leaf size={24} />;
+    if (name.includes('indús') || name.includes('cpu')) return <Cpu size={24} />;
+    if (name.includes('saúde') || name.includes('bem')) return <HeartPulse size={24} />;
+    if (name.includes('energ')) return <Zap size={24} />;
+    if (name.includes('cidade') || name.includes('smart')) return <Building2 size={24} />;
+    return <Lightbulb size={24} />;
   };
 
   return (
@@ -72,7 +80,7 @@ export const WorkingGroups: React.FC = () => {
                 <div className="absolute inset-0 bg-brand-neon opacity-0 group-hover:opacity-[0.03] transition-opacity duration-700"></div>
 
                 <div className="w-12 h-12 bg-white dark:bg-white/[0.05] rounded-2xl flex items-center justify-center text-brand-green dark:text-brand-neon mb-8 transition-all duration-500 group-hover:scale-110 group-hover:bg-brand-neon group-hover:text-black">
-                  {getIcon(index)}
+                  {getIcon(gt.gt)}
                 </div>
 
                 <h3 className="text-xl font-black text-slate-800 dark:text-slate-200 mb-4 tracking-tight group-hover:text-brand-neon transition-colors">{gt.gt}</h3>

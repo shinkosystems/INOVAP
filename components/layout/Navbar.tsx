@@ -5,9 +5,10 @@ import { Menu, X, LogIn, Download, Sun, Moon } from 'lucide-react';
 interface NavbarProps {
   onLoginClick: () => void;
   onNavigate?: (section: string) => void;
+  academyEnabled?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate, academyEnabled }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -52,9 +53,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate }) => {
   const navItems = [
     { label: 'Início', target: 'inicio' },
     { label: 'Sobre', target: 'sobre' },
+    { label: 'Governança', target: 'governanca' },
     { label: 'Grupos', target: 'gts' },
     { label: 'Artigos', target: 'artigos' },
-    { label: 'Agenda', target: 'eventos' }
+    { label: 'Agenda', target: 'eventos' },
+    { label: 'Academy', target: 'academy' }
   ];
 
   const handleNavClick = (e: React.MouseEvent, target: string) => {

@@ -45,7 +45,7 @@ export const LatestNews: React.FC<LatestNewsProps> = ({ onViewAll, onArticleClic
     async function fetchNews() {
       try {
         const [newsRes, empresasRes] = await Promise.all([
-          supabase.from('artigos').select('*').limit(3).order('created_at', { ascending: false }),
+          supabase.from('artigos').select('*').eq('aprovado', true).limit(3).order('created_at', { ascending: false }),
           supabase.from('empresas').select('responsavel, nome, logo')
         ]);
         

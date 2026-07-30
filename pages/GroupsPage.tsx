@@ -6,7 +6,8 @@ import { GT, User, Empresa } from '../types';
 import { 
   Users, ArrowLeft, Building2, Award, 
   Leaf, Cpu, HeartPulse, Zap, Lightbulb, 
-  Star, ChevronRight, Loader2, Search
+  Star, ChevronRight, Loader2, Search,
+  MessageSquare, Rocket, GraduationCap
 } from 'lucide-react';
 
 interface GroupsPageProps {
@@ -73,6 +74,11 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ onLoginClick, onNavigate
 
   const getIcon = (gtName: string) => {
     const name = gtName.toLowerCase();
+    if (name.includes('startup') || name.includes('apoio')) return <Rocket size={24} />;
+    if (name.includes('comunic')) return <MessageSquare size={24} />;
+    if (name.includes('tecnol')) return <Cpu size={24} />;
+    if (name.includes('capacit') || name.includes('educa')) return <GraduationCap size={24} />;
+    if (name.includes('inov')) return <Lightbulb size={24} />;
     if (name.includes('agro')) return <Leaf size={24} />;
     if (name.includes('indús') || name.includes('cpu')) return <Cpu size={24} />;
     if (name.includes('saúde') || name.includes('bem')) return <HeartPulse size={24} />;

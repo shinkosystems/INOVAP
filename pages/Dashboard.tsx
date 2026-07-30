@@ -29,12 +29,13 @@ interface DashboardProps {
   user: User | null;
   onProfileClick: () => void;
   onViewCompany: (empresa: Empresa) => void;
+  onNavigate: (target: string) => void;
 }
 
 type Tab = 'overview' | 'ranking' | 'members' | 'articles' | 'agenda' | 'my_events' | 'articles_manage' | 'users_manage' | 'gts_manage' | 'gamification' | 'checkin' | 'tasks';
 type CalendarType = 'month' | 'week' | 'day';
 
-export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick, onViewCompany }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileClick, onViewCompany, onNavigate }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -857,27 +858,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
               </button>
             ))}
 
-          {user.governanca && (
+          {user?.is_admin && (
             <>
               <div className="pt-6 px-4 group-hover:border-t border-slate-200/40 dark:border-white/[0.02]">
-                <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap mb-4">GOVERNANÇA</div>
+                <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap mb-4">ADMINISTRAÇÃO</div>
               </div>
-              {[
-                { id: 'gts_manage', label: 'Gestão de GTs', icon: Boxes },
-                { id: 'articles_manage', label: 'Aprovar Artigos', icon: CheckSquare },
-                { id: 'gamification', label: 'Gamificação', icon: Trophy },
-                { id: 'checkin', label: 'Check-in', icon: ScanLine }
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as Tab)}
-                  className={`w-full flex items-center gap-4 px-3.5 py-3.5 rounded-2xl font-bold transition-all relative ${activeTab === item.id ? 'bg-brand-neon/20 text-brand-green dark:text-brand-neon shadow-sm shadow-brand-neon/10' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.03] hover:text-slate-900 dark:hover:text-white'}`}
-                >
-                  <item.icon size={22} className="shrink-0" />
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm">{item.label}</span>
-                  {activeTab === item.id && <div className="absolute left-0 w-1 h-6 bg-brand-neon rounded-full" />}
-                </button>
-              ))}
+              <button
+                onClick={() => onNavigate('admin')}
+                className="w-full flex items-center gap-4 px-3.5 py-3.5 rounded-2xl font-bold transition-all text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.03] hover:text-slate-900 dark:hover:text-white"
+              >
+                <Shield size={22} className="shrink-0 text-amber-500" />
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm text-left">Painel Admin</span>
+              </button>
             </>
           )}
         </nav>
@@ -966,26 +958,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
                     </button>
                   ))}
 
-                {user.governanca && (
+                {user?.is_admin && (
                   <>
                     <div className="pt-6 px-4">
-                      <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest mb-4">GOVERNANÇA</div>
+                      <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest mb-4">ADMINISTRAÇÃO</div>
                     </div>
-                    {[
-                      { id: 'gts_manage', label: 'Gestão de GTs', icon: Boxes },
-                      { id: 'articles_manage', label: 'Aprovar Artigos', icon: CheckSquare },
-                      { id: 'gamification', label: 'Gamificação', icon: Trophy },
-                      { id: 'checkin', label: 'Check-in', icon: ScanLine }
-                    ].map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => { setActiveTab(item.id as Tab); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl font-bold transition-all ${activeTab === item.id ? 'bg-brand-neon/10 text-brand-neon' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.03]'}`}
-                      >
-                        <item.icon size={20} />
-                        <span className="text-sm">{item.label}</span>
-                      </button>
-                    ))}
+                    <button
+                      onClick={() => { onNavigate('admin'); setIsMobileMenuOpen(false); }}
+                      className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.03] text-left"
+                    >
+                      <Shield size={20} className="text-amber-500 shrink-0" />
+                      <span className="text-sm">Painel Admin</span>
+                    </button>
                   </>
                 )}
               </nav>

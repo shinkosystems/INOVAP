@@ -3,6 +3,10 @@ export interface GT {
   id: number;
   gt: string;
   descricao?: string;
+  coordenador_id?: number;
+  coordenador?: User;
+  diretrizes?: string;
+  info_institucional?: string;
 }
 
 export interface Cargo {
@@ -20,6 +24,7 @@ export interface User {
   gts?: number[];
   cargo?: number;
   governanca?: boolean;
+  is_admin?: boolean;
   avatar?: string;
   artigos: number;
   pontos: number;
@@ -133,3 +138,21 @@ export interface TarefaComentario {
   conteudo: string;
   autor?: User;
 }
+
+export interface Configuracao {
+  key: string;
+  value: string;
+}
+
+export interface AcademyVideo {
+  id: number;
+  created_at: string;
+  autor?: string;
+  titulo: string;
+  subtitulo?: string;
+  conteudo?: string;
+  youtube_url: string;
+  capa?: string;
+  ordem?: number;
+}
+
