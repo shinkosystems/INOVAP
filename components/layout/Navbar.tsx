@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Logo } from '../ui/Logo';
-import { Menu, X, LogIn, Download, Sun, Moon } from 'lucide-react';
+import { Menu, X, LogIn, Download, Sun, Moon, Loader2 } from 'lucide-react';
 
 interface NavbarProps {
   onLoginClick: () => void;
   onNavigate?: (section: string) => void;
   academyEnabled?: boolean;
+  user?: any;
+  sessionLoading?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate, academyEnabled }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate, academyEnabled, user, sessionLoading }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -73,6 +75,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate, academ
     setIsOpen(false);
   };
 
+  const handleMemberAreaClick = () => {
+    if (sessionLoading) return;
+    if (user) {
+      onNavigate?.('dashboard');
+    } else {
+      onLoginClick();
+    }
+  };
+
   return (
     <nav className={`fixed w-full z-50 transition-all duration-300 ${scrolled ? 'py-4' : 'py-6'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -114,18 +125,23 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate, academ
                   {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
 
-                <button 
-                  onClick={onLoginClick}
+<button 
+                  onClick={handleMemberAreaClick}
+                  disabled={sessionLoading}
                   className={`
                     px-6 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 border shadow-lg
                     ${theme === 'dark'
                       ? 'bg-brand-green/20 border-brand-green/40 text-brand-neon hover:bg-brand-neon hover:text-black shadow-brand-neon/10'
-                      : 'bg-brand-green border-brand-green text-white hover:bg-brand-darkGreen shadow-brand-green/20'
-                    }
+                      : 'bg-brand-green border-brand-green text-white hover:bg-brand-darkGreen shadow-brand-green/20'}
+                    ${sessionLoading ? 'opacity-50 cursor-not-allowed' : ''}
                   `}
                 >
-                  <LogIn size={18} />
-                  Área do Membro
+                  {sessionLoading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <LogIn size={18} />
+                  )}
+                  {sessionLoading ? 'Carregando...' : 'Área do Membro'}
                 </button>
             </div>
 
@@ -165,11 +181,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onNavigate, academ
                     </a>
                 ))}
                 <button 
-                  onClick={() => { setIsOpen(false); onLoginClick(); }}
-                  className="w-full mt-6 bg-brand-neon text-black px-5 py-4 rounded-2xl font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-brand-neon/20"
+                  onClick={() => { setIsOpen(false); handleMemberAreaClick(); }}
+                  disabled={sessionLoading}
+                  className={`w-full mt-6 bg-brand-neon text-black px-5 py-4 rounded-2xl font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-brand-neon/20 ${sessionLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <LogIn size={20} />
-                  Área do Membro
+                  {sessionLoading ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <LogIn size={20} />
+                  )}
+                  {sessionLoading ? 'Carregando...' : 'Área do Membro'}
                 </button>
             </div>
         </div>

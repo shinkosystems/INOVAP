@@ -802,9 +802,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onNavigate, onLogout
 
         {/* Top Header */}
         <header className="h-20 bg-slate-900/40 border-b border-slate-900 flex items-center justify-between px-8 z-10">
-          <div>
-            <h1 className="text-lg font-black tracking-tight capitalize">{activeTab}</h1>
-            <p className="text-[10px] text-slate-400">Gerencie a plataforma INOVAP Alto Paraopeba</p>
+          <div className="flex items-center gap-4 cursor-pointer" onClick={() => onNavigate('inicio')}>
+            <Logo dark={true} />
+            <div>
+              <h1 className="text-lg font-black tracking-tight capitalize">Dashboard</h1>
+              <p className="text-[10px] text-slate-400">Gerencie a plataforma INOVAP Alto Paraopeba</p>
+            </div>
           </div>
           
           <div className="flex items-center gap-4">

@@ -46,6 +46,7 @@ const App: React.FC = () => {
   const [previewEmpresa, setPreviewEmpresa] = useState<Empresa | null>(null);
   const [loginInitialIsSignUp, setLoginInitialIsSignUp] = useState(false);
   const [academyEnabled, setAcademyEnabled] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
     const checkAcademy = async () => {
@@ -73,6 +74,7 @@ const App: React.FC = () => {
         if (data) {
           setPreviewEmpresa(data);
           setCurrentPage(Page.COMPANY_PUBLIC);
+          setSessionLoading(false);
           return;
         }
       }
@@ -110,6 +112,7 @@ const App: React.FC = () => {
           }
         }
       }
+      setSessionLoading(false);
     };
     checkSession();
   }, []);
@@ -184,6 +187,14 @@ const App: React.FC = () => {
     } else if (target === 'academy') {
       setCurrentPage(Page.ACADEMY);
       window.scrollTo(0, 0);
+    } else if (target === 'dashboard') {
+      if (user) {
+        setCurrentPage(Page.DASHBOARD);
+        window.scrollTo(0, 0);
+      } else {
+        setCurrentPage(Page.LOGIN);
+        window.scrollTo(0, 0);
+      }
     } else {
       if (currentPage !== Page.LANDING) {
         setCurrentPage(Page.LANDING);
@@ -317,7 +328,7 @@ const App: React.FC = () => {
       default:
         return (
           <div className="bg-black min-h-screen text-white selection:bg-brand-neon selection:text-black">
-            <Navbar onLoginClick={() => setCurrentPage(Page.LOGIN)} onNavigate={handleNavigate} academyEnabled={academyEnabled} />
+            <Navbar onLoginClick={() => setCurrentPage(Page.LOGIN)} onNavigate={handleNavigate} academyEnabled={academyEnabled} user={user} sessionLoading={sessionLoading} />
             <Hero />
             <EcosystemSection onNavigate={handleNavigate} />
             <Stats />

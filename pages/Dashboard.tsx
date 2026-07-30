@@ -891,6 +891,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user, onProfileC
             >
               <MenuIcon size={20} />
             </button>
+            <div className="hidden lg:block cursor-pointer" onClick={() => onNavigate('inicio')}>
+              <Logo dark={theme === 'dark'} className="scale-110" />
+            </div>
             <div className="hidden lg:block">
               <h2 className="text-slate-900 dark:text-white text-xl font-black tracking-tight">Olá, {user.nome.split(' ')[0]} 👋</h2>
               <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">Status do Ecossistema: <span className="text-brand-neon">Ativo</span></p>
